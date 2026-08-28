@@ -36,9 +36,12 @@ coverage/
 
 # Build Outputs & Cache
 dist/
+dist-ssr/
 build/
 .cache/
 .npm/
+*.tsbuildinfo
+*.local
 
 # Operating System Files
 .DS_Store
@@ -52,11 +55,12 @@ Thumbs.db
 
 # IDE & Editor Configs
 .idea/
+.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
