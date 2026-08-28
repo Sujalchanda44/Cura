@@ -1,0 +1,444 @@
+{
+  "info": {
+    "_postman_id": "healthsync-ai-collection-v1",
+    "name": "HealthSync AI Backend REST API",
+    "description": "Comprehensive Postman collection for HealthSync AI REST API endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login as User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.tokens) {",
+                  "    pm.collectionVariables.set('token', jsonData.data.tokens.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@healthsync.ai\",\n  \"password\": \"User@123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.tokens) {",
+                  "    pm.collectionVariables.set('adminToken', jsonData.data.tokens.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@healthsync.ai\",\n  \"password\": \"Admin@123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Register New User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sarah Connor\",\n  \"email\": \"sarah@example.com\",\n  \"password\": \"Password@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"<INSERT_REFRESH_TOKEN>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh-token"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"<INSERT_REFRESH_TOKEN>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Health Profile",
+      "item": [
+        {
+          "name": "Get Health Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/health-profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["health-profile"]
+            }
+          }
+        },
+        {
+          "name": "Save / Update Health Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"heightCm\": 180,\n  \"weightKg\": 75,\n  \"age\": 29,\n  \"gender\": \"male\",\n  \"activityLevel\": \"moderately_active\",\n  \"healthGoal\": \"build_muscle\",\n  \"allergies\": [\"Peanuts\"],\n  \"dietaryRestrictions\": [\"High Protein\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/health-profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["health-profile"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard Summary",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "summary"]
+            }
+          }
+        },
+        {
+          "name": "Get Health Score",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/health-score",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "health-score"]
+            }
+          }
+        },
+        {
+          "name": "Get Weekly Report",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/weekly-report",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "weekly-report"]
+            }
+          }
+        },
+        {
+          "name": "Get Monthly Report",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/monthly-report",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "monthly-report"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Food Scanner & Nutrition",
+      "item": [
+        {
+          "name": "Scan Barcode (OpenFoodFacts)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barcode\": \"3017620422003\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/food/scan-barcode",
+              "host": ["{{baseUrl}}"],
+              "path": ["food", "scan-barcode"]
+            }
+          }
+        },
+        {
+          "name": "Check Allergens",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ingredients\": [\"Peanuts\", \"Sugar\", \"Wheat Flour\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/food/check-allergens",
+              "host": ["{{baseUrl}}"],
+              "path": ["food", "check-allergens"]
+            }
+          }
+        },
+        {
+          "name": "Nutrition Analysis (Text)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mealDescription\": \"Grilled chicken salad with quinoa and avocado dressing\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/food/nutrition-analysis",
+              "host": ["{{baseUrl}}"],
+              "path": ["food", "nutrition-analysis"]
+            }
+          }
+        },
+        {
+          "name": "AI Meal Recommendation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mealType\": \"dinner\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/food/ai-recommendation",
+              "host": ["{{baseUrl}}"],
+              "path": ["food", "ai-recommendation"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AI Assistant",
+      "item": [
+        {
+          "name": "Chat with Gemini",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"What are 3 practical ways to improve sleep recovery while building muscle?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "chat"]
+            }
+          }
+        },
+        {
+          "name": "Get Health Advice",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/ai/health-advice",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "health-advice"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Reports & PDF Export",
+      "item": [
+        {
+          "name": "Download PDF Health Report",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/reports/download-pdf",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "download-pdf"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Notifications & Reminders",
+      "item": [
+        {
+          "name": "Get Reminders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"]
+            }
+          }
+        },
+        {
+          "name": "Create Medicine Reminder",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Vitamin D3\",\n  \"dosage\": \"2000 IU\",\n  \"time\": \"09:00\",\n  \"days\": [\"Daily\"],\n  \"notes\": \"Take with meal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/medicine-reminder",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "medicine-reminder"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Admin Management",
+      "item": [
+        {
+          "name": "Get Users (Admin Only)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Platform Analytics (Admin Only)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "analytics"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

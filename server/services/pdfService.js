@@ -1,0 +1,149 @@
+/**
+ * PDF Report Generation Service using PDFKit
+ */
+
+const PDFDocument = require('pdfkit');
+
+class PdfService {
+  /**
+   * Generate Health Report PDF Buffer
+   */
+  static async generateReportPdf(reportData) {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 40, size: 'A4' });
+        const buffers = [];
+
+        doc.on('data', (chunk) => buffers.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(buffers)));
+        doc.on('error', (err) => reject(err));
+
+        const { user, profile, metrics, score, periodName, summary } = reportData;
+
+        // 1. Header & Branding
+        doc
+          .fillColor('#0f766e')
+          .fontSize(22)
+          .font('Helvetica-Bold')
+          .text('HEALTHSYNC AI', { align: 'center' });
+
+        doc
+          .fillColor('#4b5563')
+          .fontSize(11)
+          .font('Helvetica')
+          .text('Personalized Health, Nutrition & Wellness Report', { align: 'center' })
+          .moveDown(0.5);
+
+        doc
+          .strokeColor('#0f766e')
+          .lineWidth(2)
+          .moveTo(40, doc.y)
+          .lineTo(555, doc.y)
+          .stroke()
+          .moveDown(1);
+
+        // 2. User & Period Information
+        doc
+          .fillColor('#111827')
+          .fontSize(13)
+          .font('Helvetica-Bold')
+          .text(`Report Period: ${periodName || 'Weekly Overview'}`)
+          .moveDown(0.3);
+
+        doc
+          .fontSize(10)
+          .font('Helvetica')
+          .fillColor('#374151')
+          .text(`Patient / User: ${user?.name || 'Valued User'} (${user?.email || 'N/A'})`)
+          .text(`Generated Date: ${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })}`)
+          .moveDown(1);
+
+        // 3. Health Score Box
+        doc
+          .rect(40, doc.y, 515, 60)
+          .fillAndStroke('#f0fdfa', '#0d9488');
+
+        doc
+          .fillColor('#0f766e')
+          .fontSize(16)
+          .font('Helvetica-Bold')
+          .text(`Overall Health Score: ${score?.overallScore || 85} / 100 (${score?.status || 'Good'})`, 55, doc.y - 48);
+
+        doc
+          .fontSize(9)
+          .font('Helvetica')
+          .fillColor('#134e4a')
+          .text(`Nutrition: ${score?.breakdown?.nutrition?.score || 25}/30 | Activity: ${score?.breakdown?.activity?.score || 24}/30 | Sleep: ${score?.breakdown?.sleep?.score || 18}/20 | Hydration: ${score?.breakdown?.hydration?.score || 18}/20`, 55, doc.y + 4)
+          .moveDown(2);
+
+        // 4. Biometrics & Goal
+        doc
+          .fillColor('#111827')
+          .fontSize(12)
+          .font('Helvetica-Bold')
+          .text('1. Biometric Profile & Goals')
+          .moveDown(0.3);
+
+        doc
+          .fontSize(9)
+          .font('Helvetica')
+          .fillColor('#374151')
+          .text(`• Height: ${profile?.heightCm || 170} cm | Weight: ${profile?.weightKg || 70} kg | Age: ${profile?.age || 25}`)
+          .text(`• BMI: ${profile?.bmi || 'N/A'} (${profile?.bmiCategory || 'Normal weight'})`)
+          .text(`• Basal Metabolic Rate (BMR): ${profile?.bmr || 1650} kcal | Total Energy Expenditure (TDEE): ${profile?.tdee || 2200} kcal`)
+          .text(`• Health Goal: ${profile?.healthGoal?.replace('_', ' ').toUpperCase() || 'MAINTAIN WEIGHT'}`)
+          .text(`• Target Calories: ${profile?.targets?.dailyCalories || 2000} kcal / day`)
+          .moveDown(1);
+
+        // 5. Activity & Sleep Summary
+        doc
+          .fillColor('#111827')
+          .fontSize(12)
+          .font('Helvetica-Bold')
+          .text('2. Activity, Hydration & Sleep Averages')
+          .moveDown(0.3);
+
+        doc
+          .fontSize(9)
+          .font('Helvetica')
+          .fillColor('#374151')
+          .text(`• Daily Steps Average: ${metrics?.steps || 7500} steps (Goal: ${metrics?.targetSteps || 8000})`)
+          .text(`• Daily Water Intake: ${metrics?.waterMl || 2200} ml (Goal: ${metrics?.targetWaterMl || 2500} ml)`)
+          .text(`• Sleep Average: ${metrics?.sleepHours || 7.5} hours / night`)
+          .text(`• Active Calories Burnt: ${metrics?.activeCaloriesBurnt || 400} kcal`)
+          .moveDown(1);
+
+        // 6. AI Insights & Clinical Guidance
+        doc
+          .fillColor('#111827')
+          .fontSize(12)
+          .font('Helvetica-Bold')
+          .text('3. AI HealthSync Insights & Recommendations')
+          .moveDown(0.3);
+
+        const insightsText = summary?.aiInsights ||
+          'Your overall physical activity and sleep consistency are strong. Increasing daily hydration by 300ml will help boost cognitive alertness and optimize metabolic recovery. Continue maintaining a protein-forward diet.';
+
+        doc
+          .fontSize(9)
+          .font('Helvetica-Oblique')
+          .fillColor('#1f2937')
+          .text(insightsText, { width: 515, align: 'justify' })
+          .moveDown(2);
+
+        // 7. Footer
+        doc
+          .fontSize(8)
+          .font('Helvetica')
+          .fillColor('#9ca3af')
+          .text('Confidential - Generated by HealthSync AI Platform. Not a substitute for professional medical advice.', 40, 780, { align: 'center', width: 515 });
+
+        doc.end();
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+}
+
+module.exports = PdfService;
