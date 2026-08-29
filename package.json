@@ -1,34 +1,16 @@
 {
-  "name": "cura-plus",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "name": "cura-plus-workspace",
+  "version": "1.0.0",
+  "description": "Cura+ AI Health Platform - Monorepo Workspace",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev": "npm run dev:backend & npm run dev:frontend",
+    "start": "npm run start --prefix backend",
+    "build:frontend": "npm run build --prefix frontend",
+    "test:backend": "npm test --prefix backend"
   },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.2",
-    "lucide-react": "^0.439.0",
-    "recharts": "^2.12.7",
-    "zustand": "^4.5.5",
-    "axios": "^1.7.7",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.5.2"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
-    "@types/node": "^22.5.4",
-    "@vitejs/plugin-react": "^4.3.1",
-    "typescript": "^5.5.3",
-    "vite": "^5.4.1",
-    "tailwindcss": "^3.4.10",
-    "postcss": "^8.4.41",
-    "autoprefixer": "^10.4.20"
-  }
+  "keywords": ["health", "ai", "cura", "react", "express", "supabase"],
+  "author": "Cura+ Team",
+  "license": "ISC"
 }
