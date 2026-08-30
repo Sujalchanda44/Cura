@@ -1,6 +1,22 @@
-# CURA AI — Backend REST API
+# CURA AI — Health Tracker 
 
 A scalable, clean **Node.js & Express** backend for **CURA AI**, an AI-powered Health Tracker platform. Designed following **MVC architecture**, with JWT Authentication, Role-Based Access Control (RBAC), Google Gemini AI integration, OpenFoodFacts Barcode Scanner, and dynamic PDF Report generation.
+
+IBM Bob was used as an AI-powered development assistant during the development of Cura+, helping the team accelerate the implementation, debugging, and refinement of different parts of the application.
+
+The main workflow involved providing IBM Bob with project requirements, existing code, and desired functionality. Based on these inputs, it assisted in generating and modifying code, identifying potential errors, improving implementation, and suggesting solutions during development.
+
+Key development activities included:
+
+Code Generation: Assisted in creating components and implementing functionality based on project requirements.
+Code Debugging: Helped identify errors and suggest fixes when features were not working as expected.
+Feature Development: Supported the implementation and refinement of different Cura+ features and user workflows.
+Code Improvement: Suggested cleaner and more efficient approaches to existing implementations.
+Development Assistance: Helped the team understand unfamiliar code, APIs, libraries, and implementation approaches.
+UI/UX Refinement: Assisted with improving the structure and user experience of the web interface.
+Testing & Iteration: Supported an iterative workflow where generated code was tested, reviewed, corrected, and integrated into the project.
+
+Overall, IBM Bob functioned as a development co-pilot, helping the team move from requirements and ideas to working implementations more quickly while allowing the developers to review and control the final code. It was particularly useful for reducing development time, troubleshooting issues, and experimenting with new features for Cura+.
 
 > **Zero Database Setup Needed**: Runs immediately with a thread-safe in-memory store and pre-configured seed accounts.
 
