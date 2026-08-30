@@ -1,4 +1,4 @@
-# HealthSync AI — Backend REST API
+# CURA AI — Backend REST API
 
 A scalable, clean **Node.js & Express** backend for **HealthSync AI**, an AI-powered Health Tracker platform. Designed following **MVC architecture**, with JWT Authentication, Role-Based Access Control (RBAC), Google Gemini AI integration, OpenFoodFacts Barcode Scanner, and dynamic PDF Report generation.
 
