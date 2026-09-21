@@ -43,30 +43,36 @@ export default function ProductAnalysis() {
     }
   };
 
-  // Demo fallback product
-  const defaultProduct = {
-    foodName: "Dark Chocolate Protein Bar",
-    brand: "HealthyLife Co.",
-    nutriScore: 92,
-    safetyStatus: "SAFE",
-    nutritionalBreakdown: {
-      calories: 210,
-      protein: 20,
-      carbs: 24,
-      fat: 8,
-      fiber: 10,
-      sodium: 140,
-      sugar: 2
-    },
-    ingredients: ["Rolled Oats", "Chocolate chips", "Soy protein", "Almond butter"],
-    allergenCheck: {
-      safeToConsume: true,
-      allergenConflicts: []
-    },
-    imageUrl: "https://images.unsplash.com/photo-1622484211148-91cc2eeb3a77?q=80&w=600&auto=format&fit=crop"
-  };
+  if (!productData) {
+    return (
+      <div className="space-y-6 pb-24">
+        <div className="flex items-center space-x-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/scanner')}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Product Analysis</h1>
+            <p className="text-slate-500">Nutritional breakdown & health compatibility.</p>
+          </div>
+        </div>
 
-  const product = productData || defaultProduct;
+        <Card className="p-12 text-center rounded-3xl border border-slate-200/80 bg-white/70 backdrop-blur-md">
+          <h3 className="text-lg font-bold text-slate-800">No Product Scanned Yet</h3>
+          <p className="text-xs text-slate-500 mt-2 max-w-sm mx-auto">
+            Scan a barcode or upload a meal image with the Smart Scanner to analyze its nutritional values and check for allergens.
+          </p>
+          <Button 
+            onClick={() => navigate('/scanner')} 
+            className="mt-6 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl"
+          >
+            Open Food Scanner
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  const product = productData;
   
   const score = product.nutriScore || 85;
   const isSafe = product.safetyStatus === 'SAFE' || product.allergenCheck?.safeToConsume !== false;

@@ -72,22 +72,14 @@ export default function Reports() {
     sleep: day.sleepHours || 0
   }));
 
-  // Create a default exercise log based on user's active workout reminders + some defaults
-  const staticActivities = [
-    { id: 'act_1', activity: 'Morning Jogging', duration: '40 min', hr: '135 bpm', cals: '380 kcal', status: 'Completed' },
-    { id: 'act_2', activity: 'Stretching & Yoga', duration: '20 min', hr: '105 bpm', cals: '120 kcal', status: 'Completed' }
-  ];
-
-  const dynamicActivities = exerciseReminders.map((workout: any) => ({
+  const exerciseLog = exerciseReminders.map((workout: any) => ({
     id: workout.id,
     activity: workout.title || 'Workout',
-    duration: workout.notes?.includes('min') ? workout.notes : '45 min',
+    duration: workout.notes?.includes('min') ? workout.notes : (workout.dosage || '30 min'),
     hr: '120 bpm',
-    cals: '300 kcal',
+    cals: '250 kcal',
     status: workout.isActive ? 'Scheduled' : 'Completed'
   }));
-
-  const exerciseLog = [...dynamicActivities, ...staticActivities];
 
   return (
     <div className="space-y-6">
@@ -208,19 +200,27 @@ export default function Reports() {
                 </tr>
               </thead>
               <tbody>
-                {exerciseLog.map((log) => (
-                  <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                    <td className="px-4 py-3 font-medium text-slate-900">{log.activity}</td>
-                    <td className="px-4 py-3 text-slate-600">{log.duration}</td>
-                    <td className="px-4 py-3 text-slate-600">{log.hr}</td>
-                    <td className="px-4 py-3 text-slate-600">{log.cals}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Badge variant={log.status === 'Completed' ? 'success' : 'secondary'}>
-                        {log.status}
-                      </Badge>
+                {exerciseLog.length > 0 ? (
+                  exerciseLog.map((log) => (
+                    <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                      <td className="px-4 py-3 font-medium text-slate-900">{log.activity}</td>
+                      <td className="px-4 py-3 text-slate-600">{log.duration}</td>
+                      <td className="px-4 py-3 text-slate-600">{log.hr}</td>
+                      <td className="px-4 py-3 text-slate-600">{log.cals}</td>
+                      <td className="px-4 py-3 text-right">
+                        <Badge variant={log.status === 'Completed' ? 'success' : 'secondary'}>
+                          {log.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-xs text-slate-400">
+                      No workout or activity records found in your database.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

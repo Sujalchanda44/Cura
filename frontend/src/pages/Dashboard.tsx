@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowUpRight, Droplets, Flame, Moon, Activity, 
-  Pill, Check, Loader2, Compass, Sparkles, 
-  TrendingUp, Smile, CloudSun, Plus, X
+  Pill, Check, Loader2, Plus, X
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +18,6 @@ import { getUserProfile } from '@/api/userApi';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Dashboard() {
-  const navigate = useNavigate();
   const { user, healthProfile } = useAuth();
   
   const [isLoading, setIsLoading] = useState(true);
@@ -32,21 +29,11 @@ export default function Dashboard() {
   // Quick Log Modal State
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logSteps, setLogSteps] = useState('5000');
-  const [logWater, setLogWater] = useState('1500');
+  const [logWater, setLogWater] = useState('2.0');
   const [logSleep, setLogSleep] = useState('7.5');
   const [logCalories, setLogCalories] = useState('350');
   const [logWorkout, setLogWorkout] = useState('30');
   const [isSavingLog, setIsSavingLog] = useState(false);
-
-  // Motivational quote
-  const [quote, setQuote] = useState('Your health is your greatest wealth. Small steps compound daily.');
-  const quotesList = [
-    'Your health is your greatest wealth. Small steps compound daily.',
-    'Hydration fuels focus. Drink water consistently throughout the morning.',
-    'Consistent sleep rhythms build mental clarity and physical resilience.',
-    'A 30-minute walk balances cortisol and optimizes resting heart rates.',
-    'Allergen Shield is active. Check food scanner results before new meals.'
-  ];
 
   const fetchData = async () => {
     try {
@@ -58,7 +45,6 @@ export default function Dashboard() {
       setDashboardData(dashboard);
       setProfileData(profile);
       setMedications((notifications || []).filter((n: any) => n.type === 'medicine'));
-      setQuote(quotesList[Math.floor(Math.random() * quotesList.length)]);
     } catch (error) {
       if (import.meta.env.DEV) console.error('Error fetching dashboard data:', error);
     } finally {
@@ -86,7 +72,7 @@ export default function Dashboard() {
     try {
       await logDailyMetric({
         steps: Number(logSteps),
-        waterMl: Number(logWater),
+        waterMl: Math.round(Number(logWater) * 1000),
         sleepHours: Number(logSleep),
         activeCaloriesBurnt: Number(logCalories),
         exerciseDuration: Number(logWorkout),
@@ -157,13 +143,15 @@ export default function Dashboard() {
   // Format Recharts history
   const chartData = (dashboardData?.chartHistory || []).map((day: any) => ({
     name: day.day,
-    value: day[chartMetric] || 0
+    value: chartMetric === 'waterIntake' 
+      ? Number(((day.waterIntake || 0) / 1000).toFixed(1)) 
+      : (day[chartMetric] || 0)
   }));
 
   const getMetricLabel = () => {
     if (chartMetric === 'steps') return 'Steps';
     if (chartMetric === 'sleepHours') return 'Sleep (Hours)';
-    return 'Water (mL)';
+    return 'Water (L)';
   };
 
   return (
@@ -182,57 +170,23 @@ export default function Dashboard() {
           <p className="text-slate-500 text-xs md:text-sm mt-1">Here is your verified clinical AI wellness analysis for today.</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div>
           <Button 
-            onClick={() => setIsLogModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 text-xs font-bold rounded-2xl shadow-sm"
+            onClick={() => {
+              if (stepsCurrent > 0) setLogSteps(String(stepsCurrent));
+              if (waterCurrent > 0) setLogWater(waterCurrent.toFixed(1));
+              if (sleepHours > 0) setLogSleep(String(sleepHours));
+              if (caloriesBurned > 0) setLogCalories(String(caloriesBurned));
+              if (exerciseMinutes > 0) setLogWorkout(String(exerciseMinutes));
+              setIsLogModalOpen(true);
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 text-xs font-bold rounded-2xl shadow-sm px-4 py-2.5"
           >
             <Plus className="w-4 h-4" />
             <span>Log Today's Metrics</span>
           </Button>
-
-          <div className="hidden sm:flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl">
-            <CloudSun className="w-5 h-5 text-amber-500 shrink-0" />
-            <div className="text-xs">
-              <span className="font-semibold block text-slate-700">72°F & Clear</span>
-              <span className="text-slate-400">Cardio Weather</span>
-            </div>
-          </div>
         </div>
       </motion.div>
-
-      {/* Empty State Banner if no health data logged yet today */}
-      {!hasLoggedToday && (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-gradient-to-r from-blue-50 to-teal-50 border border-blue-200 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm"
-        >
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
-              <Activity className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">No health metrics logged for today yet</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Log your water intake, steps, or sleep to generate your live clinical health score.</p>
-            </div>
-          </div>
-
-          <Button 
-            size="sm" 
-            onClick={() => setIsLogModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl"
-          >
-            Quick Log Now
-          </Button>
-        </motion.div>
-      )}
-
-      {/* Motivational Quote Banner */}
-      <div className="bg-slate-50/80 border border-slate-200/60 p-3.5 rounded-2xl flex items-center gap-3">
-        <Smile className="w-4 h-4 text-blue-600 shrink-0" />
-        <span className="text-xs font-medium text-slate-600 italic">{quote}</span>
-      </div>
 
       {/* Metric Cards Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -325,7 +279,7 @@ export default function Dashboard() {
                   <div>
                     <span className="text-xl font-bold text-slate-800 block">{waterCurrent > 0 ? `${waterCurrent.toFixed(1)}L` : '0.0L'}</span>
                     <span className="text-[10px] text-blue-600 font-bold flex items-center gap-1">
-                      <Droplets className="w-3 h-3" /> Water
+                      <Droplets className="w-3 h-3" /> Water ({waterTarget.toFixed(1)}L target)
                     </span>
                   </div>
                   <div>
@@ -385,47 +339,6 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      {/* Quick Action Navigation Buttons */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <button
-          onClick={() => navigate('/scanner')}
-          className="p-5 bg-white border border-slate-200/80 hover:border-blue-300 shadow-sm rounded-2xl flex items-center gap-4 transition-all hover:scale-[1.01] hover:shadow-md text-left"
-        >
-          <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Compass className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="font-bold block text-slate-800 text-sm">OCR Food Scanner</span>
-            <span className="text-xs text-slate-400">Scan barcodes & identify allergens</span>
-          </div>
-        </button>
-
-        <button
-          onClick={() => navigate('/ai-assistant')}
-          className="p-5 bg-white border border-slate-200/80 hover:border-purple-300 shadow-sm rounded-2xl flex items-center gap-4 transition-all hover:scale-[1.01] hover:shadow-md text-left"
-        >
-          <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-            <Sparkles className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="font-bold block text-slate-800 text-sm">AI Health Assistant</span>
-            <span className="text-xs text-slate-400">Personal wellness & clinical advice</span>
-          </div>
-        </button>
-
-        <button
-          onClick={() => navigate('/reports')}
-          className="p-5 bg-white border border-slate-200/80 hover:border-teal-300 shadow-sm rounded-2xl flex items-center gap-4 transition-all hover:scale-[1.01] hover:shadow-md text-left"
-        >
-          <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="font-bold block text-slate-800 text-sm">Export Health PDFs</span>
-            <span className="text-xs text-slate-400">Generate weekly clinical reports</span>
-          </div>
-        </button>
-      </div>
 
       {/* Main Charts & Side Column */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
@@ -478,33 +391,14 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Sidebar Insights & Medication list */}
-        <div className="space-y-6 lg:col-span-3 flex flex-col justify-between">
-          {/* AI Insights glass panel */}
-          <Card className="bg-gradient-to-br from-blue-500/5 to-purple-500/5 border border-blue-500/10 shadow-sm rounded-3xl p-6">
-            <CardHeader className="pb-3 p-0 flex flex-row items-center gap-3">
-              <div className="bg-blue-600/10 p-2.5 rounded-xl text-blue-600 shadow-sm shrink-0">
-                <Activity className="h-5 w-5" />
-              </div>
-              <CardTitle className="text-base font-extrabold text-slate-800">AI Medical Insights</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 mt-3">
-              <p className="text-slate-600 text-xs leading-relaxed">
-                {hasLoggedToday
-                  ? (score && score >= 80 
-                      ? "Outstanding job! Your health metrics demonstrate excellent daily habits. Keeping up your water intake and exercise will solidify these gains." 
-                      : "Your clinical metrics are recorded for today. Regular sleep schedules and hydration optimize cellular repair.")
-                  : "Complete your health logging above to activate real-time predictive insights from your AI wellness coach."}
-              </p>
-            </CardContent>
-          </Card>
-
+        {/* Sidebar Reminders & Medication list */}
+        <div className="lg:col-span-3 flex flex-col">
           {/* Medication list */}
-          <Card className="bg-white/70 backdrop-blur-md border border-slate-200/80 shadow-sm rounded-3xl p-6 flex-1 flex flex-col justify-between">
+          <Card className="bg-white/70 backdrop-blur-md border border-slate-200/80 shadow-sm rounded-3xl p-6 h-full flex flex-col justify-between">
             <CardHeader className="pb-3 p-0">
               <CardTitle className="text-base font-extrabold text-slate-800">Reminders & Medications</CardTitle>
             </CardHeader>
-            <CardContent className="p-0 mt-4 flex-1 overflow-y-auto max-h-[160px]">
+            <CardContent className="p-0 mt-4 flex-1 overflow-y-auto max-h-[260px]">
               <div className="space-y-3">
                 {medications.length > 0 ? (
                   medications.map((med) => (
@@ -584,12 +478,15 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 block mb-1">Water (mL)</label>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Water (Liters)</label>
                     <Input 
                       type="number" 
+                      step="0.1"
+                      min="0"
+                      max="10"
                       value={logWater} 
                       onChange={(e) => setLogWater(e.target.value)} 
-                      placeholder="e.g. 2000"
+                      placeholder="e.g. 2.5"
                       required
                     />
                   </div>

@@ -57,23 +57,7 @@ export default function AIAssistant() {
     try {
       const response = await sendChatMessage(prompt) as Message;
       
-      // Check if message mentions oatmeal or breakfast to keep the nice UI card option if desired
-      let finalMessage: Message = response;
-      if (prompt.toLowerCase().includes('oatmeal') || prompt.toLowerCase().includes('breakfast')) {
-        finalMessage = {
-          ...response,
-          sender: 'ai',
-          type: 'nutrition_card',
-          data: {
-            cals: 320,
-            pro: '10g',
-            fib: '8g',
-            fat: '12g'
-          }
-        };
-      }
-      
-      setMessages(prev => [...prev, finalMessage]);
+      setMessages(prev => [...prev, response]);
     } catch (error) {
       console.error('Error sending chat message:', error);
       setMessages(prev => [...prev, {
@@ -170,59 +154,69 @@ export default function AIAssistant() {
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-slate-50/50">
           {messages.map((msg) => (
-            <div key={msg.id} className={cn(
-              "flex max-w-[85%] sm:max-w-[75%]",
-              msg.sender === 'user' ? "ml-auto" : "mr-auto"
-            )}>
-              {msg.sender === 'ai' && (
-                <div className="h-8 w-8 bg-primary rounded-full flex items-center justify-center shrink-0 mr-3 mt-1 shadow-sm">
-                  <Sparkles className="h-4 w-4 text-white" />
-                </div>
+            <div 
+              key={msg.id} 
+              className={cn(
+                "w-full flex",
+                msg.sender === 'user' ? "justify-end" : "justify-start"
               )}
-              
-              <div className="space-y-3">
-                <div className={cn(
-                  "px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm whitespace-pre-wrap",
-                  msg.sender === 'user' 
-                    ? "bg-blue-600 text-white rounded-tr-sm" 
-                    : "bg-white border border-slate-200 text-slate-700 rounded-tl-sm"
-                )}>
-                  {msg.text}
-                </div>
-                
-                {msg.type === 'nutrition_card' && msg.data && (
-                  <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm w-full max-w-sm">
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
-                        <div className="text-lg font-bold text-slate-900">{msg.data.cals}</div>
-                        <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Calories</div>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
-                        <div className="text-lg font-bold text-slate-900">{msg.data.pro}</div>
-                        <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Protein</div>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
-                        <div className="text-lg font-bold text-slate-900">{msg.data.fib}</div>
-                        <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Fiber</div>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
-                        <div className="text-lg font-bold text-slate-900">{msg.data.fat}</div>
-                        <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Fat</div>
-                      </div>
-                    </div>
+            >
+              <div className={cn(
+                "flex max-w-[85%] sm:max-w-[75%]",
+                msg.sender === 'user' ? "flex-row-reverse" : "flex-row"
+              )}>
+                {msg.sender === 'ai' && (
+                  <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center shrink-0 mr-3 mt-1 shadow-sm text-white">
+                    <Sparkles className="h-4 w-4" />
                   </div>
                 )}
+                
+                <div className={cn("flex flex-col space-y-2", msg.sender === 'user' ? "items-end" : "items-start")}>
+                  <div className={cn(
+                    "px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm whitespace-pre-wrap break-words text-left inline-block",
+                    msg.sender === 'user' 
+                      ? "bg-blue-600 text-white rounded-br-sm shadow-blue-500/10" 
+                      : "bg-white border border-slate-200 text-slate-700 rounded-bl-sm"
+                  )}>
+                    {msg.text}
+                  </div>
+                  
+                  {msg.type === 'nutrition_card' && msg.data && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm w-full max-w-sm">
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
+                          <div className="text-lg font-bold text-slate-900">{msg.data.cals}</div>
+                          <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Calories</div>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
+                          <div className="text-lg font-bold text-slate-900">{msg.data.pro}</div>
+                          <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Protein</div>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
+                          <div className="text-lg font-bold text-slate-900">{msg.data.fib}</div>
+                          <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Fiber</div>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
+                          <div className="text-lg font-bold text-slate-900">{msg.data.fat}</div>
+                          <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Fat</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
           {isTyping && (
-            <div className="flex max-w-[75%] mr-auto items-center">
-              <div className="h-8 w-8 bg-primary rounded-full flex items-center justify-center shrink-0 mr-3 shadow-sm">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              <div className="px-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-500 text-sm flex items-center space-x-1.5 shadow-sm rounded-tl-sm">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <span>Cura+ is thinking...</span>
+            <div className="w-full flex justify-start">
+              <div className="flex max-w-[75%] items-center">
+                <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center shrink-0 mr-3 shadow-sm text-white">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div className="px-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-500 text-sm flex items-center space-x-1.5 shadow-sm rounded-bl-sm">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                  <span>Cura+ is thinking...</span>
+                </div>
               </div>
             </div>
           )}

@@ -10,7 +10,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated, isAuthLoading, isProfileLoading, user } = useAuth();
 
   // App startup & verification loading state
-  if (isAuthLoading || isProfileLoading) {
+  if (isAuthLoading || (!user && isProfileLoading)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
         <div className="w-12 h-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mb-4" />
@@ -22,7 +22,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   // Not logged in -> Redirect to Login
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !user) {
     return <Navigate to="/auth/login" replace />;
   }
 

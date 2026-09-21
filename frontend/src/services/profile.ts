@@ -41,7 +41,7 @@ export const profileService = {
    */
   async ensureUserProfile(supabaseUser: any, token?: string): Promise<UserRecord> {
     const userId = supabaseUser.id;
-    const email = supabaseUser.email || '';
+    const email = (supabaseUser.email || '').toLowerCase().trim();
     const name = supabaseUser.user_metadata?.name || 
                  supabaseUser.user_metadata?.full_name || 
                  email.split('@')[0] || 
@@ -49,20 +49,38 @@ export const profileService = {
     const role = supabaseUser.user_metadata?.role || 'user';
     const avatarUrl = supabaseUser.user_metadata?.avatar_url || '';
 
-    // First try checking Supabase `users` table directly
+    // First try checking Supabase `users` table directly by ID or Email
     try {
-      const { data: existingUser } = await supabase
+      let existingUser: any = null;
+
+      // 1. Try finding by ID
+      const { data: userById } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
+
+      if (userById) {
+        existingUser = userById;
+      } else if (email) {
+        // 2. Try finding by Email (prevents 409 unique constraint conflict on email)
+        const { data: userByEmail } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (userByEmail) {
+          existingUser = userByEmail;
+        }
+      }
 
       if (existingUser) {
         // Check health profile for onboarding status
         const { data: healthProfile } = await supabase
           .from('health_profiles')
           .select('isOnboarded')
-          .eq('userId', userId)
+          .eq('userId', existingUser.id)
           .maybeSingle();
 
         return {
@@ -75,7 +93,7 @@ export const profileService = {
         };
       }
 
-      // User record does not exist in table -> Insert it now
+      // 3. User does not exist by ID or Email -> Insert new record
       const newRecord = {
         id: userId,
         email,
@@ -87,19 +105,19 @@ export const profileService = {
         updatedAt: new Date().toISOString(),
       };
 
-      const { data: insertedUser, error: insertError } = await supabase
+      const { data: insertedUser } = await supabase
         .from('users')
         .insert([newRecord])
         .select()
-        .single();
+        .maybeSingle();
 
-      if (!insertError && insertedUser) {
+      if (insertedUser) {
         return {
           id: insertedUser.id,
-          name: insertedUser.name,
-          email: insertedUser.email,
-          role: insertedUser.role,
-          avatarUrl: insertedUser.avatarUrl,
+          name: insertedUser.name || name,
+          email: insertedUser.email || email,
+          role: insertedUser.role || role,
+          avatarUrl: insertedUser.avatarUrl || avatarUrl,
           isOnboarded: false,
         };
       }

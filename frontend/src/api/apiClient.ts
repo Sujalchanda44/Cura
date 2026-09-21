@@ -50,38 +50,31 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
-        
-        // Request a new access token
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {
-          refreshToken,
-        });
-        
-        if (response.data?.success && response.data?.data?.tokens) {
-          const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data.data.tokens;
-          
-          // Store new tokens
-          localStorage.setItem('accessToken', newAccessToken);
-          localStorage.setItem('refreshToken', newRefreshToken);
-          
-          // Update headers and retry original request
+        // 1. Try Supabase refresh first
+        const { data: refreshData, error: sbError } = await supabase.auth.refreshSession();
+        if (!sbError && refreshData?.session?.access_token) {
+          const newAccessToken = refreshData.session.access_token;
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return apiClient(originalRequest);
         }
-      } catch (refreshError) {
-        // Refresh token failed or is invalid, clear storage and redirect to login
-        console.error('Refresh token failed:', refreshError);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        
-        // Only redirect to login if we are not already on an auth page
-        if (!window.location.pathname.includes('/auth') && !window.location.pathname.includes('/landing') && window.location.pathname !== '/') {
-          window.location.href = '/auth/login';
+
+        // 2. Fallback to local refresh token if using local backend auth
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (refreshToken) {
+          const response = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {
+            refreshToken,
+          });
+          
+          if (response.data?.success && response.data?.data?.tokens) {
+            const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data.data.tokens;
+            localStorage.setItem('accessToken', newAccessToken);
+            localStorage.setItem('refreshToken', newRefreshToken);
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            return apiClient(originalRequest);
+          }
         }
+      } catch (refreshError) {
+        if (import.meta.env.DEV) console.warn('Token refresh could not be completed:', refreshError);
       }
     }
     

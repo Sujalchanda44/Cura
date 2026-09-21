@@ -28,7 +28,14 @@ export interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserRecord | null>(null);
+  const [user, setUser] = useState<UserRecord | null>(() => {
+    try {
+      const saved = localStorage.getItem('cura_auth_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [healthProfile, setHealthProfile] = useState<any | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -40,21 +47,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /**
    * Sync user profile and health profile for an authenticated session
    */
-  const syncProfile = useCallback(async (currentSession: Session | null) => {
+  const syncProfile = useCallback(async (currentSession: Session | null, showLoading = false) => {
     if (!currentSession || !currentSession.user) {
-      setUser(null);
-      setHealthProfile(null);
-      setIsProfileLoading(false);
       return;
     }
 
-    setIsProfileLoading(true);
+    if (showLoading) {
+      setIsProfileLoading(true);
+    }
     try {
       const userRec = await profileService.ensureUserProfile(
         currentSession.user,
         currentSession.access_token
       );
-      setUser(userRec);
+      if (userRec) {
+        setUser(userRec);
+        localStorage.setItem('cura_auth_user', JSON.stringify(userRec));
+      }
 
       const fullData = await profileService.getUserProfile(
         currentSession.user.id,
@@ -62,7 +71,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       if (fullData) {
         setHealthProfile(fullData.healthProfile || null);
-        setUser(prev => prev ? { ...prev, isOnboarded: !!fullData.isOnboarded } : null);
+        setUser(prev => {
+          const updated = prev ? { ...prev, isOnboarded: !!fullData.isOnboarded } : null;
+          if (updated) {
+            localStorage.setItem('cura_auth_user', JSON.stringify(updated));
+          }
+          return updated;
+        });
       }
     } catch (err) {
       if (import.meta.env.DEV) console.error('[AuthProvider] Profile sync error:', err);
@@ -82,10 +97,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const initialSession = await authService.getSession();
         if (isMounted) {
           setSession(initialSession);
-          setIsAuthLoading(false);
           if (initialSession) {
-            await syncProfile(initialSession);
+            await syncProfile(initialSession, false);
           }
+          setIsAuthLoading(false);
         }
       } catch (err) {
         if (import.meta.env.DEV) console.error('[AuthProvider] Init error:', err);
@@ -101,19 +116,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!isMounted) return;
 
         if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setUser(null);
-          setHealthProfile(null);
-          setIsAuthLoading(false);
-          setIsProfileLoading(false);
+          // Confirm whether the session was legitimately destroyed or if this was a transient lock event on tab switch
+          const currentStoredSession = await authService.getSession();
+          if (!currentStoredSession) {
+            setSession(null);
+            setUser(null);
+            setHealthProfile(null);
+            setIsAuthLoading(false);
+            setIsProfileLoading(false);
+            localStorage.removeItem('cura_auth_user');
+          }
           return;
         }
 
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-          setSession(newSession);
-          setIsAuthLoading(false);
+        if (event === 'TOKEN_REFRESHED') {
           if (newSession) {
-            await syncProfile(newSession);
+            setSession(newSession);
+          }
+          return;
+        }
+
+        if (event === 'SIGNED_IN') {
+          if (newSession) {
+            setSession(newSession);
+            setIsAuthLoading(false);
+            setUser(prev => {
+              if (!prev) {
+                syncProfile(newSession, false);
+              }
+              return prev;
+            });
+          }
+          return;
+        }
+
+        if (event === 'USER_UPDATED') {
+          if (newSession) {
+            setSession(newSession);
+            await syncProfile(newSession, false);
           }
         }
       }
@@ -226,6 +266,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsAuthLoading(false);
       setIsProfileLoading(false);
       setError(null);
+      localStorage.removeItem('cura_auth_user');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
     }
   };
 
@@ -320,7 +363,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     healthProfile,
     session,
-    isAuthenticated: !!session && !!user,
+    isAuthenticated: !!user,
     isAuthLoading,
     isProfileLoading,
     isLoading: isAuthLoading || isProfileLoading,
