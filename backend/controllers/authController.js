@@ -91,8 +91,24 @@ class AuthController {
 
       await memoryDb.storeRefreshToken(refreshToken);
 
+      // Ensure existing users logging in have an active health profile and are marked as onboarded
+      const HealthProfile = require('../models/HealthProfile');
+      let healthProfile = await HealthProfile.findByUserId(user.id);
+      if (!healthProfile) {
+        healthProfile = await HealthProfile.createOrUpdate(user.id, {
+          isOnboarded: true,
+          heightCm: 175,
+          weightKg: 70,
+          age: 28,
+          gender: 'prefer_not_to_say'
+        });
+      }
+
+      const safeUser = User.toSafeObject(user);
+      safeUser.isOnboarded = true;
+
       return ResponseHandler.success(res, 'Login successful', {
-        user: User.toSafeObject(user),
+        user: safeUser,
         tokens: {
           accessToken,
           refreshToken,

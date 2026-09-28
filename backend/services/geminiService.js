@@ -18,13 +18,15 @@ class GeminiService {
     }
 
     const candidateModels = Array.from(new Set([
-      config.gemini.model || 'gemini-1.5-flash',
-      'gemini-1.5-flash',
-      'gemini-2.0-flash',
-      'gemini-2.5-flash',
-      'gemini-1.5-pro'
+      config.gemini.model || 'gemini-3.1-flash-lite',
+      'gemini-3.1-flash-lite',
+      'gemini-flash-latest',
+      'gemini-2.5-flash-lite',
+      'gemini-3.8-flash',
+      'gemini-pro-latest'
     ]));
 
+    let lastError = null;
     for (const model of candidateModels) {
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
@@ -62,22 +64,27 @@ class GeminiService {
           const data = await response.json();
           const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
-            return text;
+            return { text, model };
           }
         } else {
           const errorText = await response.text();
           logger.warn(`Gemini model ${model} returned (${response.status}): ${errorText.substring(0, 160)}`);
+          lastError = new Error(`Gemini API error (${response.status}): ${errorText.substring(0, 160)}`);
         }
       } catch (error) {
         logger.error(`Gemini API request error with model ${model}:`, error.message);
+        lastError = error;
       }
     }
 
+    if (lastError) {
+      logger.error('All Gemini model candidates failed. Last error:', lastError.message);
+    }
     return null;
   }
 
   /**
-   * Conversational Health Assistant Chat with Real-Time Allergy Safety
+   * Conversational Health Assistant Chat with Real-Time Allergy Safety & Strict Response Length Policy
    */
   static async chat(userMessage, userContext = {}) {
     const { name, healthProfile, todayMetrics, recentLogs } = userContext;
@@ -87,174 +94,68 @@ class GeminiService {
     const medicalConditions = healthProfile?.medicalConditions || [];
     const conditionsText = medicalConditions.length > 0 ? medicalConditions.join(', ') : 'None reported';
 
-    const waterCurrentL = Number(((todayMetrics?.waterMl || 0) / 1000).toFixed(1));
-    const waterTargetL = Number(((todayMetrics?.targetWaterMl || healthProfile?.targets?.waterMl || 2500) / 1000).toFixed(1));
-    const stepsCurrent = todayMetrics?.steps || 0;
-    const stepsTarget = todayMetrics?.targetSteps || healthProfile?.targets?.steps || 8000;
-    const calorieTarget = healthProfile?.targets?.dailyCalories || 2000;
+    const systemInstruction = `You are Cura+ AI (HealthSync AI), an intelligent personal health, nutrition, and wellness assistant.
 
-    const systemInstruction = `You are Cura+ AI (HealthSync AI), an empathetic, evidence-based health, nutrition, and wellness coach.
-Context about the user:
+CRITICAL RESPONSE LENGTH & STRUCTURE POLICY (STRICT):
+Cura+ must answer in a concise, useful, and structured way.
+
+Default response length:
+- 3–6 sentences for simple questions.
+- Maximum 5 bullet points for normal questions.
+- For complex health questions, provide a short explanation followed by the most important actionable points.
+- Avoid unnecessary background information.
+- Do NOT repeat the user's question.
+- Do NOT restate information that the user already provided.
+- Do NOT provide long introductions or conclusions. Never start with conversational filler (e.g., "Hello [Name]! It's great to see you tracking your health goals..." or unprompted commentary on water/steps). Go straight into the direct answer or advice.
+
+Length modifiers:
+- If the user asks for "short" (or brief/quick): Answer strictly in 1–3 sentences.
+- If the user asks for "detailed" (or comprehensive/in-depth): Provide a more comprehensive explanation with thorough points.
+- If the user asks a simple factual question: Give the direct answer first.
+- If additional information is useful but not necessary: Leave it out unless the user asks for more detail.
+
+USER CLINICAL CONTEXT (FOR INTERNAL CONTEXT & ALLERGEN SAFETY ONLY — DO NOT RECITE UNLESS SPECIFICALLY RELEVANT):
 - Name: ${name || 'User'}
-- Health Goal: ${healthProfile?.healthGoal || healthProfile?.healthGoals?.join(', ') || 'General Wellness'}
-- Blood Type: ${healthProfile?.bloodType || 'Unknown'}
-- BMI: ${healthProfile?.bmi || 'N/A'} (${healthProfile?.bmiCategory || 'Normal'})
-- Daily Calorie Target: ${calorieTarget} kcal
-- ALLERGIES (CRITICAL): [${allergiesText}]
+- Documented ALLERGIES: [${allergiesText}]
 - Medical Conditions: [${conditionsText}]
-- Today's Water: ${waterCurrentL}L / ${waterTargetL}L
-- Today's Steps: ${stepsCurrent} / ${stepsTarget}
-- Today's Calories Burned: ${todayMetrics?.caloriesBurned || todayMetrics?.activeCaloriesBurnt || 0} kcal
+- Primary Health Goal: ${healthProfile?.healthGoal || healthProfile?.healthGoals?.join(', ') || 'General Wellness'}
 
-CRITICAL SAFETY RULE:
-If the user asks whether they can consume, eat, or try an ingredient, food, or snack that matches any of their allergies [${allergiesText}], you MUST clearly and immediately warn them: "No, you have a [Allergy Name] allergy! Avoid consuming this."
-Always remind the user to consult a licensed healthcare professional for medical emergencies.`;
+ALLERGY & SAFETY RULES:
+1. If the user asks whether they can consume, eat, or try a food/ingredient that contains or risks their documented allergies [${allergiesText}], give the direct safety verdict immediately first (e.g., "Standard burgers are not safe for you without modifications because you have a milk allergy."), followed by concise actionable points (maximum 3-5 bullets covering buns/butter, cheese, cross-contamination, and safe dairy-free alternatives).
+2. If the user asks about medicines or health conditions, give direct, safe information, followed by a brief advice to consult a qualified doctor or pharmacist.`;
 
-    const rawResponse = await this._callGeminiApi(userMessage, systemInstruction);
+    // Detect user-specific length requests
+    const lower = userMessage.toLowerCase();
+    let promptWithDirective = userMessage;
 
-    if (rawResponse) {
+    if (/\b(short|brief|in\s*brief|quick|summarize|1\s*sentence|2\s*sentences|3\s*sentences)\b/i.test(lower)) {
+      promptWithDirective += '\n\n[DIRECTIVE: The user requested a SHORT answer. Keep your response strictly within 1–3 sentences. Give the direct answer first.]';
+    } else if (/\b(detailed|in[- ]depth|comprehensive|elaborate|explain\s+in\s+detail)\b/i.test(lower)) {
+      promptWithDirective += '\n\n[DIRECTIVE: The user requested a DETAILED answer. Provide a comprehensive explanation with structured points.]';
+    } else {
+      promptWithDirective += '\n\n[DIRECTIVE: Follow the default policy: 3–6 sentences or max 5 bullet points. Direct answer first. No long greeting, no filler intro, no repeating the question.]';
+    }
+
+    const apiResult = await this._callGeminiApi(promptWithDirective, systemInstruction);
+
+    if (apiResult && apiResult.text) {
+      let cleanedReply = apiResult.text.trim();
+
+      // Post-processing safety: strip any accidental opening filler like "Hello Sambu! It's great to see..."
+      cleanedReply = cleanedReply.replace(/^(hello|hi|hey)\s+[^!.,\n]+!+\s*(it's great to see you|great job on|welcome back)[^\n]*\n+/i, '');
+
       return {
-        reply: rawResponse,
+        reply: cleanedReply.trim(),
         source: 'gemini-api',
-        model: config.gemini.model
+        model: apiResult.model
       };
     }
 
-    // High quality dynamic clinical health engine
-    const msgLower = (userMessage || '').toLowerCase().trim();
-
-    // 1. Check for direct allergy conflict
-    for (const allergy of userAllergies) {
-      const allergyLower = allergy.toLowerCase().trim();
-      if (allergyLower && msgLower.includes(allergyLower)) {
-        return {
-          reply: `⚠️ ALLERGY SAFETY WARNING: Avoid this item! Your health profile indicates a documented "${allergy}" allergy. Consuming products containing ${allergy} may cause an adverse allergic reaction. Always read ingredient labels thoroughly and choose safe certified alternatives.`,
-          source: 'cura-clinical-engine',
-          model: 'cura-allergy-guard'
-        };
-      }
-    }
-
-    // 2. Medicine & Medication Safety Inquiry
-    if (msgLower.includes('medicine') || msgLower.includes('medication') || msgLower.includes('pill') || msgLower.includes('drug') || msgLower.includes('side effect') || msgLower.includes('interaction')) {
-      return {
-        reply: `💊 Medication Safety Assessment for ${name || 'you'}:
-
-• Documented Allergies: ${allergiesText}
-• Medical Profile: ${conditionsText}
-
-Clinical Safety Guidelines:
-1. Active Reminders: Track your scheduled dosages under 'Reminders & Medications' on your dashboard to prevent missed or double doses.
-2. Cross-Reactions: Check inactive ingredients with your pharmacist to ensure no cross-reactivity with your allergies (${allergiesText}).
-3. Administration: Take oral medications with a full glass of water (${waterCurrentL}L logged today) and follow meal guidelines (empty stomach vs with food).
-4. Interactions: Avoid combining prescriptions with alcohol or unverified herbal supplements.
-
-*Please consult your prescribing doctor or licensed pharmacist for medical emergencies and personalized dosage guidance.*`,
-        source: 'cura-clinical-engine',
-        model: 'cura-medication-advisor'
-      };
-    }
-
-    // 3. Daily Health Tips & Personalized Advice
-    if (msgLower.includes('daily health tip') || msgLower.includes('health tip') || msgLower.includes('tip') || msgLower.includes('advice') || msgLower.includes('wellness')) {
-      return {
-        reply: `🌟 Personalized Daily Health Tips for ${name || 'you'} (Goal: ${healthProfile?.healthGoal || 'Healthy Wellness'}):
-
-1. 💧 Hydration Progress: You have logged ${waterCurrentL}L of water toward your ${waterTargetL}L target today. Drink a glass of water before each meal to enhance cellular repair and nutrient absorption.
-2. 🚶 Activity Target: You've completed ${stepsCurrent.toLocaleString()} steps today (Target: ${stepsTarget.toLocaleString()}). A quick 15-minute brisk walk will help you close the remaining gap.
-3. 🥗 Nutrition Alignment: Target ~${calorieTarget} kcal today. Focus on clean protein and fiber-rich vegetables to maintain satiety and steady metabolic energy.
-4. 😴 Rest & Recovery: Prioritize 7-8 hours of restful sleep tonight to support muscular recovery and mental clarity.`,
-        source: 'cura-clinical-engine',
-        model: 'cura-wellness-advisor'
-      };
-    }
-
-    // 4. Food & Nutrition / Can I Eat This
-    if (msgLower.includes('can i eat') || msgLower.includes('eat') || msgLower.includes('food') || msgLower.includes('snack') || msgLower.includes('diet') || msgLower.includes('meal')) {
-      return {
-        reply: `🍽️ Nutrition & Meal Guidance:
-
-• Safe Allergen Profile: Your profile protects against [${allergiesText}].
-• Daily Calorie Target: ~${calorieTarget} kcal (Goal: ${healthProfile?.healthGoal || 'General Wellness'}).
-
-How to verify specific meals:
-1. 📸 Food Scanner: Use the 'Food Scanner' in the sidebar to upload a photo of your meal or nutrition facts label for automated ingredient extraction and allergy screening.
-2. Balanced Choices: Pair complex carbs (quinoa, oats, brown rice) with lean protein (chicken breast, tofu, fish) and healthy fats (olive oil, avocado).
-3. If you have a specific food item in mind, reply with its name and ingredients, and I will evaluate it against your targets!`,
-        source: 'cura-clinical-engine',
-        model: 'cura-nutrition-advisor'
-      };
-    }
-
-    // 5. Health Analysis & Trend Review
-    if (msgLower.includes('analyze') || msgLower.includes('analysis') || msgLower.includes('health trend') || msgLower.includes('review') || msgLower.includes('progress') || msgLower.includes('score')) {
-      const waterPct = Math.min(100, Math.round((waterCurrentL / (waterTargetL || 2.5)) * 100));
-      const stepsPct = Math.min(100, Math.round((stepsCurrent / (stepsTarget || 8000)) * 100));
-      
-      return {
-        reply: `📊 Comprehensive Health Analysis for ${name || 'User'}:
-
-• Health Score Status: ${stepsCurrent > 0 || waterCurrentL > 0 ? 'Active Tracking' : 'Pending Daily Logging'}
-• Body Mass Index (BMI): ${healthProfile?.bmi ? `${healthProfile.bmi} (${healthProfile.bmiCategory || 'Normal'})` : 'Record height & weight in Profile'}
-• Hydration: ${waterCurrentL}L / ${waterTargetL}L (${waterPct}% achieved)
-• Movement: ${stepsCurrent.toLocaleString()} / ${stepsTarget.toLocaleString()} steps (${stepsPct}% achieved)
-• Calorie Budget: ~${calorieTarget} kcal daily target (Goal: ${healthProfile?.healthGoal || 'Maintain Weight'})
-• Active Caloric Burn: ${todayMetrics?.caloriesBurned || todayMetrics?.activeCaloriesBurnt || 0} kcal
-
-Clinical Summary:
-Your health parameters are actively syncing. Reaching your daily hydration target (${waterTargetL}L) and closing out your step goal will maximize cellular vitality and metabolic health!`,
-        source: 'cura-clinical-engine',
-        model: 'cura-analytics-engine'
-      };
-    }
-
-    // 6. Water & Hydration Specific
-    if (msgLower.includes('water') || msgLower.includes('hydrate') || msgLower.includes('hydration') || msgLower.includes('thirsty')) {
-      return {
-        reply: `💧 Hydration Tracker:
-You've logged ${waterCurrentL}L out of your ${waterTargetL}L target today. Proper hydration optimizes kidney function, metabolic rate, and cognitive clarity. Aim for 250ml every 90 minutes to maintain steady cellular hydration!`,
-        source: 'cura-clinical-engine',
-        model: 'cura-hydration-advisor'
-      };
-    }
-
-    // 7. Sleep & Recovery Specific
-    if (msgLower.includes('sleep') || msgLower.includes('tired') || msgLower.includes('rest') || msgLower.includes('insomnia') || msgLower.includes('fatigue')) {
-      return {
-        reply: `😴 Sleep & Restorative Health:
-• Today's Sleep: ${todayMetrics?.sleepHours || 0} hours (Clinical recommendation: 7-9 hours).
-• Rest Tips: Maintain consistent sleep-wake timing, minimize blue light 1 hour before bed, and keep your sleeping space dark and cool (around 19°C) to maximize deep REM cycles.`,
-        source: 'cura-clinical-engine',
-        model: 'cura-sleep-advisor'
-      };
-    }
-
-    // 8. Workout, Steps & Fitness Specific
-    if (msgLower.includes('workout') || msgLower.includes('exercise') || msgLower.includes('gym') || msgLower.includes('cardio') || msgLower.includes('muscle') || msgLower.includes('training')) {
-      return {
-        reply: `💪 Exercise & Training Insights:
-• Today's Activity: ${stepsCurrent.toLocaleString()} steps & ${todayMetrics?.exerciseDuration || todayMetrics?.workoutMinutes || 0} mins of workout logged.
-• Recommendations for "${healthProfile?.healthGoal || 'fitness'}":
-  - Aim for 30-45 minutes of moderate aerobic or resistance exercise.
-  - Always warm up for 5 minutes and refuel with 20-30g of clean protein post-workout.`,
-        source: 'cura-clinical-engine',
-        model: 'cura-fitness-advisor'
-      };
-    }
-
-    // 9. Conversational Context-Aware Fallback for any other prompt
+    // Fallback if API key is missing or network/API call fails
     return {
-      reply: `Hello ${name || 'there'}! Regarding "${userMessage.trim()}":
-
-I am tracking your health goal of "${healthProfile?.healthGoal || 'general wellness'}". Today you've logged ${stepsCurrent.toLocaleString()} steps and ${waterCurrentL}L of water.
-
-How can I best assist you with this? You can ask me to:
-• Analyze your current health trends and score
-• Provide personalized daily nutrition tips
-• Check medication safety and interaction guidelines
-• Scan your meals using the Food Scanner`,
-      source: 'cura-clinical-engine',
-      model: 'cura-health-assistant'
+      reply: `I could not connect to the Gemini AI API right now. Please check that your GEMINI_API_KEY is configured properly in backend/.env.`,
+      source: 'cura-system',
+      model: 'fallback'
     };
   }
 
@@ -272,7 +173,8 @@ How can I best assist you with this? You can ask me to:
 Provide 3 prioritized, highly practical health recommendations for today.`;
 
     const raw = await this._callGeminiApi(prompt);
-    if (raw) return raw;
+    const replyText = typeof raw === 'object' && raw ? raw.text : raw;
+    if (replyText) return replyText;
 
     return [
       `Hydration boost: You're at ${metrics?.waterMl || 0}ml. Drink an additional 500ml glass of water before dinner to reach your ${metrics?.targetWaterMl || 2500}ml target.`,
@@ -293,7 +195,8 @@ Provide 3 prioritized, highly practical health recommendations for today.`;
 Provide Meal Name, Estimated Calories, Protein (g), Carbs (g), Fat (g), and brief preparation instructions.`;
 
     const raw = await this._callGeminiApi(prompt);
-    if (raw) return { recommendation: raw, source: 'gemini-api' };
+    const replyText = typeof raw === 'object' && raw ? raw.text : raw;
+    if (replyText) return { recommendation: replyText, source: 'gemini-api' };
 
     return {
       mealName: 'Mediterranean Grilled Chicken & Quinoa Bowl',
@@ -360,9 +263,10 @@ Identify the food name, estimated serving size, calories (kcal), protein (g), ca
 }`;
 
       const raw = await this._callGeminiApi(prompt, 'Return strictly valid JSON.', inlineImages);
-      if (raw) {
+      const replyText = typeof raw === 'object' && raw ? raw.text : raw;
+      if (replyText) {
         try {
-          const jsonMatch = raw.match(/\{[\s\S]*\}/);
+          const jsonMatch = replyText.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             return JSON.parse(jsonMatch[0]);
           }

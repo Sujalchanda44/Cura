@@ -35,7 +35,13 @@ export const useAuthStore = create<AuthState>((set) => ({
         return false;
       }
 
-      const userRec = await profileService.ensureUserProfile(authUser, session.access_token);
+      const userRec = await profileService.fetchUserProfile(authUser.id, authUser.email);
+      if (!userRec) {
+        await authService.signOut();
+        set({ error: 'User account not found in database', isLoading: false });
+        return false;
+      }
+
       const fullData = await profileService.getUserProfile(authUser.id, session.access_token);
       
       const mappedUser: UserRecord = {
@@ -68,10 +74,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       if (authUser) {
         const userRec = await profileService.ensureUserProfile(authUser, session?.access_token);
+        const resolvedUser: UserRecord = userRec || {
+          id: authUser.id,
+          name,
+          email,
+          role: 'user',
+          isOnboarded: false,
+        };
         
         if (session) {
           set({
-            user: { ...userRec, isOnboarded: false },
+            user: { ...resolvedUser, isOnboarded: false },
             sessionToken: session.access_token,
             isAuthenticated: true,
             isLoading: false,
@@ -141,7 +154,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const session = await authService.getSession();
       if (session && session.user) {
-        const userRec = await profileService.ensureUserProfile(session.user, session.access_token);
+        const userRec = await profileService.fetchUserProfile(session.user.id, session.user.email);
+        if (!userRec) {
+          await authService.signOut();
+          set({
+            user: null,
+            sessionToken: null,
+            isAuthenticated: false,
+          });
+          return;
+        }
+
         const fullData = await profileService.getUserProfile(session.user.id, session.access_token);
 
         set({

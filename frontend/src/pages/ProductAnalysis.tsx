@@ -51,19 +51,19 @@ export default function ProductAnalysis() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Product Analysis</h1>
-            <p className="text-slate-500">Nutritional breakdown & health compatibility.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Product Analysis</h1>
+            <p className="text-slate-500 dark:text-slate-400">Nutritional breakdown & health compatibility.</p>
           </div>
         </div>
 
-        <Card className="p-12 text-center rounded-3xl border border-slate-200/80 bg-white/70 backdrop-blur-md">
-          <h3 className="text-lg font-bold text-slate-800">No Product Scanned Yet</h3>
-          <p className="text-xs text-slate-500 mt-2 max-w-sm mx-auto">
+        <Card className="p-12 text-center rounded-3xl border border-slate-200/80 dark:border-[#273322] bg-white/70 dark:bg-[#151A12]/80 backdrop-blur-md">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">No Product Scanned Yet</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">
             Scan a barcode or upload a meal image with the Smart Scanner to analyze its nutritional values and check for allergens.
           </p>
           <Button 
             onClick={() => navigate('/scanner')} 
-            className="mt-6 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl"
+            className="mt-6 bg-[#134E2F] hover:bg-[#0E3B24] text-white text-xs font-bold rounded-2xl"
           >
             Open Food Scanner
           </Button>
@@ -85,15 +85,15 @@ export default function ProductAnalysis() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Product Analysis</h1>
-          <p className="text-slate-500">Nutritional breakdown & health compatibility.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Product Analysis</h1>
+          <p className="text-slate-500 dark:text-slate-400">Nutritional breakdown & health compatibility.</p>
         </div>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-1 space-y-6">
-          <Card className="overflow-hidden border-2 border-slate-100 shadow-sm">
-            <div className="h-64 bg-slate-100 relative">
+          <Card className="overflow-hidden border-2 border-slate-100 dark:border-[#273322] shadow-sm">
+            <div className="h-64 bg-slate-100 dark:bg-[#1C2318] relative">
               <div className="absolute inset-0 flex items-center justify-center">
                 <img 
                   src={product.imageUrl || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=600&auto=format&fit=crop"} 
@@ -101,16 +101,16 @@ export default function ProductAnalysis() {
                   className="w-full h-full object-cover" 
                 />
               </div>
-              <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm text-sm font-bold flex items-center text-slate-900">
-                <Heart className="h-4 w-4 mr-1 text-primary" fill="currentColor" />
+              <div className="absolute top-4 right-4 bg-white/90 dark:bg-[#151A12]/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm text-sm font-bold flex items-center text-slate-900 dark:text-slate-100">
+                <Heart className="h-4 w-4 mr-1 text-[#134E2F] dark:text-[#C1F3BA]" fill="currentColor" />
                 Score: {score}
               </div>
             </div>
             <CardContent className="pt-6">
               <div className="flex justify-between items-start mb-2">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900 leading-tight">{product.foodName}</h2>
-                  <p className="text-slate-500 font-medium">{product.brand || 'Vision AI Analyzed'}</p>
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 leading-tight">{product.foodName}</h2>
+                  <p className="text-slate-500 dark:text-slate-400 font-medium">{product.brand || 'Vision AI Analyzed'}</p>
                 </div>
               </div>
               

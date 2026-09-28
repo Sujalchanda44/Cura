@@ -11,6 +11,9 @@ const { authenticate } = require('../middleware/authMiddleware');
 router.use(authenticate);
 
 router.get('/', RecommendationController.getRecommendations);
+router.post('/ai-suggest', RecommendationController.getAISuggestions);
+router.post('/log-meal', RecommendationController.logMeal);
+router.get('/logged-today', RecommendationController.getLoggedMealsToday);
 router.post('/custom', RecommendationController.getCustomRecommendation);
 
 module.exports = router;

@@ -30,3 +30,13 @@ export const uploadAvatar = async (file: File) => {
   });
   return response.data?.data;
 };
+
+export const uploadAvatarBase64 = async (base64: string) => {
+  const response = await apiClient.post('/user/avatar', { avatarBase64: base64 });
+  return response.data?.data;
+};
+
+export const deleteAvatar = async () => {
+  const response = await apiClient.delete('/user/avatar');
+  return response.data?.data;
+};

@@ -77,6 +77,12 @@ apiClient.interceptors.response.use(
         if (import.meta.env.DEV) console.warn('Token refresh could not be completed:', refreshError);
       }
     }
+
+    if (error.response?.status === 401) {
+      localStorage.removeItem('cura_auth_user');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+    }
     
     return Promise.reject(error);
   }

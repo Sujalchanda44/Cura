@@ -85,23 +85,23 @@ export default function Reports() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Health Reports</h1>
-          <p className="text-slate-500">Comprehensive overview of your health metrics.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Health Reports</h1>
+          <p className="text-slate-500 dark:text-slate-400">Comprehensive overview of your health metrics.</p>
         </div>
         <div className="flex items-center space-x-2">
           <select 
             value={timeRange}
             onChange={(e) => setTimeRange(e.target.value)}
-            className="flex h-10 w-32 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="flex h-10 w-32 rounded-md border border-slate-200 dark:border-[#273322] bg-white dark:bg-[#1C2318] text-slate-800 dark:text-slate-100 px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
           >
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
+            <option value="weekly" className="bg-white dark:bg-[#151A12]">Weekly</option>
+            <option value="monthly" className="bg-white dark:bg-[#151A12]">Monthly</option>
           </select>
           <Button 
             onClick={handleDownloadPdf}
             disabled={isDownloading}
             variant="outline" 
-            className="shrink-0 bg-white"
+            className="shrink-0 bg-white dark:bg-[#1C2318] border-slate-200 dark:border-[#273322] text-slate-800 dark:text-slate-100 cursor-pointer"
           >
             {isDownloading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -190,7 +190,7 @@ export default function Reports() {
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
+              <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-[#1C2318] border-b border-slate-100 dark:border-[#273322]">
                 <tr>
                   <th className="px-4 py-3 font-medium">Activity</th>
                   <th className="px-4 py-3 font-medium">Duration</th>
@@ -202,11 +202,11 @@ export default function Reports() {
               <tbody>
                 {exerciseLog.length > 0 ? (
                   exerciseLog.map((log) => (
-                    <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-900">{log.activity}</td>
-                      <td className="px-4 py-3 text-slate-600">{log.duration}</td>
-                      <td className="px-4 py-3 text-slate-600">{log.hr}</td>
-                      <td className="px-4 py-3 text-slate-600">{log.cals}</td>
+                    <tr key={log.id} className="border-b border-slate-50 dark:border-[#273322]/50 hover:bg-slate-50/50 dark:hover:bg-[#1C2318]/50">
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{log.activity}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{log.duration}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{log.hr}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{log.cals}</td>
                       <td className="px-4 py-3 text-right">
                         <Badge variant={log.status === 'Completed' ? 'success' : 'secondary'}>
                           {log.status}

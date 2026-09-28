@@ -22,12 +22,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   // Not logged in -> Redirect to Login
-  if (!isAuthenticated && !user) {
+  if (!isAuthenticated || !user) {
     return <Navigate to="/auth/login" replace />;
   }
 
-  // Logged in but has not completed onboarding -> Redirect to Onboarding
-  if (user && !user.isOnboarded) {
+  // Only freshly registered users in the active session are forced to complete onboarding
+  const isFreshRegistration = sessionStorage.getItem('cura_just_registered') === 'true' || !!user?.isNewRegistration;
+  if (user && !user.isOnboarded && isFreshRegistration && user.role !== 'admin') {
     return <Navigate to="/onboarding" replace />;
   }
 

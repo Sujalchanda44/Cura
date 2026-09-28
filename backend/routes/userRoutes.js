@@ -24,11 +24,14 @@ router.get('/profile', UserController.getProfile);
 router.put('/', UserController.updateProfile);
 router.put('/profile', UserController.updateProfile);
 
-// Onboarding endpoint
+// Onboarding endpoints
 router.post('/onboarding', UserController.saveOnboarding);
+router.post('/onboarding/draft', UserController.saveOnboardingDraft);
+router.get('/onboarding/draft', UserController.getOnboardingDraft);
 
 // Avatar & Security
 router.post('/avatar', handleUpload(uploadDisk.single('avatar')), UserController.uploadAvatar);
+router.delete('/avatar', UserController.deleteAvatar);
 router.put('/change-password', validate(changePasswordSchema), UserController.changePassword);
 
 module.exports = router;

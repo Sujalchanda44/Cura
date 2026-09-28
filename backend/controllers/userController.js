@@ -5,6 +5,7 @@
 
 const User = require('../models/User');
 const HealthProfile = require('../models/HealthProfile');
+const HealthMetric = require('../models/HealthMetric');
 const ResponseHandler = require('../utils/responseHandler');
 const { HTTP_STATUS } = require('../config/constants');
 
@@ -24,10 +25,14 @@ class UserController {
         return ResponseHandler.error(res, 'User not found', HTTP_STATUS.NOT_FOUND);
       }
 
+      const isOnboarded = !!healthProfile?.isOnboarded || 
+                          !!user?.settings?.isOnboarded || 
+                          (Number(healthProfile?.heightCm || 0) > 0 && Number(healthProfile?.weightKg || 0) > 0);
+
       return ResponseHandler.success(res, 'Profile retrieved successfully', {
         ...User.toSafeObject(user),
-        healthProfile: healthProfile || null,
-        isOnboarded: !!healthProfile?.isOnboarded
+        healthProfile: healthProfile ? { ...healthProfile, isOnboarded } : null,
+        isOnboarded
       });
     } catch (error) {
       next(error);
@@ -41,23 +46,77 @@ class UserController {
   static async saveOnboarding(req, res, next) {
     try {
       const userId = req.user.id;
-      const profile = await HealthProfile.createOrUpdate(userId, req.body);
+      const profile = await HealthProfile.createOrUpdate(userId, {
+        ...req.body,
+        isOnboarded: true
+      });
 
-      // Update user name/settings if included
-      if (req.body.name || req.body.settings) {
-        await User.update(userId, {
-          ...(req.body.name ? { name: req.body.name } : {}),
-          ...(req.body.settings ? { settings: req.body.settings } : {})
-        });
-      }
+      // Seed historical health metrics for today so user starts with trend data right away
+      const today = new Date().toISOString().split('T')[0];
+      const initialMetrics = {
+        weightKg: Number(req.body.weightKg || req.body.weight || 70),
+        bloodPressureSystolic: req.body.bloodPressureSystolic ? Number(req.body.bloodPressureSystolic) : null,
+        bloodPressureDiastolic: req.body.bloodPressureDiastolic ? Number(req.body.bloodPressureDiastolic) : null,
+        restingHeartRate: req.body.restingHeartRate ? Number(req.body.restingHeartRate) : 72,
+        heartRateAvg: req.body.restingHeartRate ? Number(req.body.restingHeartRate) : 72,
+        oxygenSaturation: req.body.oxygenSaturation ? Number(req.body.oxygenSaturation) : null,
+        bloodGlucose: req.body.bloodGlucose ? Number(req.body.bloodGlucose) : null,
+        glucoseType: req.body.glucoseType || 'fasting',
+        bodyTemperature: req.body.bodyTemperature ? Number(req.body.bodyTemperature) : null,
+        sleepHours: Number(req.body.sleepHours) || 8,
+        waterMl: Math.round((parseFloat(req.body.waterIntake) || 2.5) * 1000) || 2500,
+      };
+
+      await HealthMetric.logDailyMetric(userId, today, initialMetrics);
+
+      // Fetch current user settings to merge with isOnboarded flag
+      const existingUser = await User.findById(userId);
+      const existingSettings = (existingUser?.settings && typeof existingUser.settings === 'object') ? existingUser.settings : {};
+      
+      await User.update(userId, {
+        ...(req.body.name ? { name: req.body.name } : {}),
+        settings: {
+          ...existingSettings,
+          ...(req.body.settings || {}),
+          isOnboarded: true
+        }
+      });
 
       const updatedUser = await User.findById(userId);
 
       return ResponseHandler.success(res, 'Onboarding health profile saved successfully', {
-        user: User.toSafeObject(updatedUser),
-        healthProfile: profile,
+        user: { ...User.toSafeObject(updatedUser), isOnboarded: true },
+        healthProfile: profile ? { ...profile, isOnboarded: true } : null,
         isOnboarded: true
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Save partial onboarding draft for Save & Resume
+   * POST /api/user/onboarding/draft
+   */
+  static async saveOnboardingDraft(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const draft = await HealthProfile.saveDraft(userId, req.body);
+      return ResponseHandler.success(res, 'Onboarding progress saved successfully', draft);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get partial onboarding draft for Save & Resume
+   * GET /api/user/onboarding/draft
+   */
+  static async getOnboardingDraft(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const draft = await HealthProfile.getDraft(userId);
+      return ResponseHandler.success(res, 'Onboarding draft retrieved successfully', draft);
     } catch (error) {
       next(error);
     }
@@ -71,8 +130,8 @@ class UserController {
     try {
       const { name, avatarUrl, settings } = req.body;
       const updated = await User.update(req.user.id, {
-        ...(name ? { name } : {}),
-        ...(avatarUrl ? { avatarUrl } : {}),
+        ...(name !== undefined ? { name } : {}),
+        ...(avatarUrl !== undefined ? { avatarUrl } : {}),
         ...(settings ? { settings } : {})
       });
       return ResponseHandler.success(res, 'Profile updated successfully', User.toSafeObject(updated));
@@ -87,16 +146,49 @@ class UserController {
    */
   static async uploadAvatar(req, res, next) {
     try {
-      if (!req.file) {
-        return ResponseHandler.error(res, 'No image file provided', HTTP_STATUS.BAD_REQUEST);
+      let avatarUrl = null;
+
+      if (req.file) {
+        avatarUrl = `/uploads/${req.file.filename}`;
+      } else if (req.body?.avatarBase64) {
+        // Base64 upload fallback
+        const fs = require('fs');
+        const path = require('path');
+        const matches = req.body.avatarBase64.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+        const uploadDir = path.resolve(__dirname, '../../uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+        const ext = matches ? (matches[1] === 'jpeg' ? 'jpg' : matches[1]) : 'png';
+        const rawData = matches ? matches[2] : req.body.avatarBase64;
+        const filename = `avatar-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+        const filePath = path.join(uploadDir, filename);
+
+        fs.writeFileSync(filePath, Buffer.from(rawData, 'base64'));
+        avatarUrl = `/uploads/${filename}`;
+      } else {
+        return ResponseHandler.error(res, 'No image file or image data provided', HTTP_STATUS.BAD_REQUEST);
       }
 
-      // Generate accessible path for uploaded avatar
-      const avatarUrl = `/uploads/${req.file.filename}`;
       const updated = await User.update(req.user.id, { avatarUrl });
 
       return ResponseHandler.success(res, 'Avatar uploaded successfully', {
         avatarUrl,
+        user: User.toSafeObject(updated)
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Delete / reset user avatar
+   * DELETE /api/user/avatar
+   */
+  static async deleteAvatar(req, res, next) {
+    try {
+      const updated = await User.update(req.user.id, { avatarUrl: null });
+      return ResponseHandler.success(res, 'Avatar removed successfully', {
+        avatarUrl: null,
         user: User.toSafeObject(updated)
       });
     } catch (error) {

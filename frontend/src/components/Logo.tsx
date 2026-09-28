@@ -4,76 +4,40 @@ interface LogoProps {
   className?: string;
   showText?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  textClassName?: string;
 }
 
-export const Logo: React.FC<LogoProps> = ({ className = '', showText = true, size = 'md' }) => {
+export const Logo: React.FC<LogoProps> = ({ className = '', showText = true, size = 'md', textClassName = '' }) => {
   const dimensions = {
     sm: { svg: 'w-6 h-6', text: 'text-lg' },
-    md: { svg: 'w-10 h-10', text: 'text-2xl' },
-    lg: { svg: 'w-16 h-16', text: 'text-4xl' },
+    md: { svg: 'w-9 h-9', text: 'text-2xl' },
+    lg: { svg: 'w-14 h-14', text: 'text-4xl' },
   }[size];
 
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      {/* SVG Icon: Medical Cross + Heart + AI Network Node */}
-      <div className={`relative ${dimensions.svg} flex items-center justify-center shrink-0`}>
+    <div className={`flex items-center gap-2.5 ${className}`}>
+      <div className={`${dimensions.svg} rounded-xl bg-[#134E2F] flex items-center justify-center p-1.5 shadow-sm border border-[#18603B] shrink-0`}>
         <svg
-          viewBox="0 0 100 100"
-          className="w-full h-full filter drop-shadow-[0_2px_8px_rgba(59,130,246,0.3)]"
+          viewBox="0 0 40 40"
+          className="w-full h-full"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
-          {/* Background Ring / Glow */}
-          <circle cx="50" cy="50" r="48" fill="url(#bgGradient)" fillOpacity="0.05" stroke="url(#borderGradient)" strokeWidth="1.5" />
-          
-          {/* AI Circuit Lines */}
-          <path d="M50 15 L50 35 M50 65 L50 85 M15 50 L35 50 M65 50 L85 50" stroke="url(#accentGradient)" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="3 3" />
-          
-          {/* Medical Cross (Centered and Rounded) */}
+          {/* Medical Cross + AI Node Core */}
           <path
-            d="M42 30 H58 V42 H70 V58 H58 V70 H42 V58 H30 V42 H42 Z"
-            fill="url(#primaryGradient)"
-            stroke="url(#accentGradient)"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
+            d="M16 6 H24 V16 H34 V24 H24 V34 H16 V24 H6 V16 H16 Z"
+            fill="#C1F3BA"
           />
-          
-          {/* Integrated Circuit Heart Nodes */}
-          <circle cx="50" cy="18" r="4" fill="#3B82F6" />
-          <circle cx="50" cy="82" r="4" fill="#14B8A6" />
-          <circle cx="18" cy="50" r="4" fill="#8B5CF6" />
-          <circle cx="82" cy="50" r="4" fill="#3B82F6" />
-
-          {/* Glowing Inner Core */}
-          <circle cx="50" cy="50" r="6" fill="#FFFFFF" />
-
-          {/* Gradients */}
-          <defs>
-            <linearGradient id="primaryGradient" x1="30" y1="30" x2="70" y2="70" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#3B82F6" />
-              <stop offset="100%" stopColor="#14B8A6" />
-            </linearGradient>
-            <linearGradient id="accentGradient" x1="15" y1="15" x2="85" y2="85" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#60A5FA" />
-              <stop offset="50%" stopColor="#8B5CF6" />
-              <stop offset="100%" stopColor="#2DD4BF" />
-            </linearGradient>
-            <linearGradient id="bgGradient" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#3B82F6" />
-              <stop offset="100%" stopColor="#8B5CF6" />
-            </linearGradient>
-            <linearGradient id="borderGradient" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="#14B8A6" stopOpacity="0.4" />
-            </linearGradient>
-          </defs>
+          <circle cx="20" cy="20" r="3" fill="#134E2F" />
+          <circle cx="20" cy="9" r="1.5" fill="#134E2F" />
+          <circle cx="20" cy="31" r="1.5" fill="#134E2F" />
+          <circle cx="9" cy="20" r="1.5" fill="#134E2F" />
+          <circle cx="31" cy="20" r="1.5" fill="#134E2F" />
         </svg>
       </div>
-
-      {/* Brand Text */}
       {showText && (
-        <span className={`${dimensions.text} font-bold tracking-tight bg-gradient-to-r from-blue-600 via-purple-600 to-teal-500 bg-clip-text text-transparent`}>
-          Cura<span className="font-light text-blue-500">+</span>
+        <span className={`${dimensions.text} font-black tracking-tight ${textClassName || 'text-slate-900'} flex items-center`}>
+          Cura<span className="text-[#A2ECA0] ml-0.5 font-bold">+</span>
         </span>
       )}
     </div>

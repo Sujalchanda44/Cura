@@ -21,7 +21,14 @@ class HealthMetric {
             ...data,
             waterIntake: data.waterMl,
             caloriesBurned: data.activeCaloriesBurnt,
-            exerciseDuration: data.workoutMinutes || data.exerciseDuration || 0
+            exerciseDuration: data.workoutMinutes || data.exerciseDuration || 0,
+            bloodPressureSystolic: data.bloodPressureSystolic,
+            bloodPressureDiastolic: data.bloodPressureDiastolic,
+            restingHeartRate: data.restingHeartRate || data.heartRateAvg,
+            oxygenSaturation: data.oxygenSaturation,
+            bloodGlucose: data.bloodGlucose,
+            glucoseType: data.glucoseType,
+            bodyTemperature: data.bodyTemperature
           };
         }
       } catch (err) {
@@ -97,7 +104,14 @@ class HealthMetric {
       exerciseDuration,
       workoutMinutes: exerciseDuration,
       weightKg: updateData.weightKg !== undefined ? updateData.weightKg : (existing?.weightKg || null),
-      heartRateAvg: Number(updateData.heartRateAvg || existing?.heartRateAvg || 70)
+      heartRateAvg: Number(updateData.restingHeartRate || updateData.heartRateAvg || existing?.restingHeartRate || existing?.heartRateAvg || 70),
+      bloodPressureSystolic: updateData.bloodPressureSystolic !== undefined ? updateData.bloodPressureSystolic : (existing?.bloodPressureSystolic || null),
+      bloodPressureDiastolic: updateData.bloodPressureDiastolic !== undefined ? updateData.bloodPressureDiastolic : (existing?.bloodPressureDiastolic || null),
+      restingHeartRate: updateData.restingHeartRate !== undefined ? updateData.restingHeartRate : (existing?.restingHeartRate || existing?.heartRateAvg || null),
+      oxygenSaturation: updateData.oxygenSaturation !== undefined ? updateData.oxygenSaturation : (existing?.oxygenSaturation || null),
+      bloodGlucose: updateData.bloodGlucose !== undefined ? updateData.bloodGlucose : (existing?.bloodGlucose || null),
+      glucoseType: updateData.glucoseType || existing?.glucoseType || 'fasting',
+      bodyTemperature: updateData.bodyTemperature !== undefined ? updateData.bodyTemperature : (existing?.bodyTemperature || null)
     };
 
     const supabasePayload = {

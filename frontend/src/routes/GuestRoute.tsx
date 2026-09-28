@@ -20,9 +20,10 @@ export const GuestRoute: React.FC<GuestRouteProps> = ({ children }) => {
     );
   }
 
-  // If already authenticated -> automatically redirect to dashboard or onboarding
+  // If already authenticated -> automatically redirect to dashboard (or onboarding for fresh registrations)
   if (isAuthenticated && user) {
-    return <Navigate to={user.isOnboarded ? "/dashboard" : "/onboarding"} replace />;
+    const isFreshRegistration = sessionStorage.getItem('cura_just_registered') === 'true' || !!user?.isNewRegistration;
+    return <Navigate to={(!user.isOnboarded && isFreshRegistration && user.role !== 'admin') ? "/onboarding" : "/dashboard"} replace />;
   }
 
   return children ? <>{children}</> : <Outlet />;

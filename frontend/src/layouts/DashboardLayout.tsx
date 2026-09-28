@@ -1,30 +1,44 @@
+import { useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, ScanLine, Utensils, 
   MessageSquareHeart, Activity, User, Settings, 
-  Bell, LogOut 
+  Bell, LogOut, Moon, Sun, Globe
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/hooks/useAuth';
+import { getAvatarUrl } from '@/lib/avatar';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
+  const { t, language, setLanguage, languages } = useLanguage();
+
+  // Guard: Only freshly registered users in active session are redirected to onboarding
+  useEffect(() => {
+    const isFreshRegistration = sessionStorage.getItem('cura_just_registered') === 'true' || !!user?.isNewRegistration;
+    if (user && !user.isOnboarded && isFreshRegistration && user.role !== 'admin') {
+      navigate('/onboarding', { replace: true });
+    }
+  }, [user, navigate]);
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Food Scanner', href: '/scanner', icon: ScanLine },
-    { name: 'Recommendations', href: '/recommendations', icon: Utensils },
-    { name: 'AI Assistant', href: '/ai-assistant', icon: MessageSquareHeart },
-    { name: 'Health Reports', href: '/reports', icon: Activity },
+    { name: t('nav.dashboard', 'Dashboard'), href: '/dashboard', icon: LayoutDashboard },
+    { name: t('nav.scanner', 'Food Scanner'), href: '/scanner', icon: ScanLine },
+    { name: t('nav.recommendations', 'Recommendations'), href: '/recommendations', icon: Utensils },
+    { name: t('nav.aiAssistant', 'AI Assistant'), href: '/ai-assistant', icon: MessageSquareHeart },
+    { name: t('nav.reports', 'Health Reports'), href: '/reports', icon: Activity },
   ];
 
   const secondaryNavigation = [
-    { name: 'Profile', href: '/profile', icon: User },
-    { name: 'Settings', href: '/settings', icon: Settings },
+    { name: t('nav.profile', 'Profile'), href: '/profile', icon: User },
+    { name: t('nav.settings', 'Settings'), href: '/settings', icon: Settings },
   ];
 
   const handleLogout = async (e: React.MouseEvent) => {
@@ -34,21 +48,23 @@ export default function DashboardLayout() {
   };
 
   const MobileBottomNav = () => (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200/50 z-50 pb-safe shadow-lg">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#151A12]/95 backdrop-blur-md border-t border-slate-200/80 dark:border-[#273322] z-50 pb-safe shadow-lg transition-colors">
       <div className="flex justify-around items-center h-16">
         {[
-          { name: 'Home', href: '/dashboard', icon: LayoutDashboard },
-          { name: 'Scan', href: '/scanner', icon: ScanLine },
-          { name: 'AI', href: '/ai-assistant', icon: MessageSquareHeart },
-          { name: 'Reports', href: '/reports', icon: Activity },
-          { name: 'Profile', href: '/profile', icon: User },
+          { name: t('nav.dashboard', 'Home'), href: '/dashboard', icon: LayoutDashboard },
+          { name: t('nav.scanner', 'Scan'), href: '/scanner', icon: ScanLine },
+          { name: t('nav.aiAssistant', 'AI'), href: '/ai-assistant', icon: MessageSquareHeart },
+          { name: t('nav.reports', 'Reports'), href: '/reports', icon: Activity },
+          { name: t('nav.profile', 'Profile'), href: '/profile', icon: User },
         ].map((item) => (
           <Link
-            key={item.name}
+            key={item.href}
             to={item.href}
             className={cn(
               "flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors",
-              location.pathname === item.href ? "text-blue-600 font-bold" : "text-slate-500 hover:text-slate-900"
+              location.pathname === item.href 
+                ? "text-[#134E2F] dark:text-[#C1F3BA] font-bold" 
+                : "text-slate-400 hover:text-[#134E2F] dark:hover:text-[#C1F3BA]"
             )}
           >
             <item.icon className="h-5 w-5" />
@@ -60,10 +76,10 @@ export default function DashboardLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans flex">
+    <div className="min-h-screen bg-[#FBFDF8] dark:bg-[#0D1109] font-sans flex text-slate-900 dark:text-slate-100 transition-colors duration-200">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-white/70 backdrop-blur-xl border-r border-slate-200/50 fixed inset-y-0 z-10">
-        <div className="h-16 flex items-center px-6 border-b border-slate-100/50">
+      <aside className="hidden md:flex flex-col w-64 bg-white/95 dark:bg-[#151A12]/95 backdrop-blur-xl border-r border-slate-200/80 dark:border-[#273322] fixed inset-y-0 z-10 shadow-sm transition-colors duration-200">
+        <div className="h-16 flex items-center px-6 border-b border-slate-100 dark:border-[#273322]">
           <Link to="/dashboard">
             <Logo size="md" />
           </Link>
@@ -73,18 +89,20 @@ export default function DashboardLayout() {
           <nav className="space-y-1.5">
             {navigation.map((item) => (
               <Link
-                key={item.name}
+                key={item.href}
                 to={item.href}
                 className={cn(
                   "flex items-center px-4 py-3 rounded-xl text-sm font-semibold transition-all group",
                   location.pathname === item.href 
-                    ? "bg-blue-600/10 text-blue-600 shadow-sm border border-blue-100/20" 
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    ? "bg-[#C1F3BA] text-[#134E2F] dark:text-[#0A0E08] font-bold shadow-sm shadow-[#C1F3BA]/40" 
+                    : "text-slate-600 dark:text-slate-300 hover:bg-[#F2FBF1] dark:hover:bg-[#1C2318] hover:text-[#134E2F] dark:hover:text-[#C1F3BA]"
                 )}
               >
                 <item.icon className={cn(
                   "mr-3 h-5 w-5 flex-shrink-0 transition-colors",
-                  location.pathname === item.href ? "text-blue-600" : "text-slate-400 group-hover:text-slate-500"
+                  location.pathname === item.href 
+                    ? "text-[#134E2F] dark:text-[#0A0E08]" 
+                    : "text-slate-400 group-hover:text-[#134E2F] dark:group-hover:text-[#C1F3BA]"
                 )} />
                 {item.name}
               </Link>
@@ -92,30 +110,37 @@ export default function DashboardLayout() {
           </nav>
 
           <div>
-            <h4 className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Account</h4>
+            <h4 className="px-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+              {t('nav.account', 'Account')}
+            </h4>
             <nav className="space-y-1.5">
               {secondaryNavigation.map((item) => (
                 <Link
-                  key={item.name}
+                  key={item.href}
                   to={item.href}
                   className={cn(
                     "flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold transition-all group",
                     location.pathname === item.href 
-                      ? "bg-blue-600/10 text-blue-600 shadow-sm border border-blue-100/20" 
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      ? "bg-[#C1F3BA] text-[#134E2F] dark:text-[#0A0E08] font-bold shadow-sm shadow-[#C1F3BA]/30" 
+                      : "text-slate-600 dark:text-slate-300 hover:bg-[#F2FBF1] dark:hover:bg-[#1C2318] hover:text-[#134E2F] dark:hover:text-[#C1F3BA]"
                   )}
                 >
-                  <item.icon className="mr-3 h-4.5 w-4.5 text-slate-400 group-hover:text-slate-500" />
+                  <item.icon className={cn(
+                    "mr-3 h-4.5 w-4.5 transition-colors",
+                    location.pathname === item.href 
+                      ? "text-[#134E2F] dark:text-[#0A0E08]" 
+                      : "text-slate-400 group-hover:text-[#134E2F] dark:group-hover:text-[#C1F3BA]"
+                  )} />
                   {item.name}
                 </Link>
               ))}
               <a
                 href="#"
                 onClick={handleLogout}
-                className="flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition-colors group"
+                className="flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold text-[#FF6554] hover:bg-[#FF6554]/10 transition-colors group"
               >
-                <LogOut className="mr-3 h-4.5 w-4.5 text-rose-500 group-hover:text-rose-600" />
-                Sign Out
+                <LogOut className="mr-3 h-4.5 w-4.5 text-[#FF6554] group-hover:scale-105" />
+                {t('nav.signOut', 'Sign Out')}
               </a>
             </nav>
           </div>
@@ -125,7 +150,7 @@ export default function DashboardLayout() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col md:pl-64 h-screen">
         {/* Header */}
-        <header className="h-16 bg-white/70 backdrop-blur-xl border-b border-slate-200/50 flex items-center justify-between px-4 sm:px-6 z-10 shrink-0">
+        <header className="h-16 bg-white/80 dark:bg-[#151A12]/90 backdrop-blur-xl border-b border-slate-200/60 dark:border-[#273322] flex items-center justify-between px-4 sm:px-6 z-10 shrink-0 transition-colors duration-200">
           <div className="flex items-center md:hidden">
             <Link to="/dashboard">
               <Logo size="sm" />
@@ -134,17 +159,60 @@ export default function DashboardLayout() {
 
           <div className="flex-1 md:flex-none"></div>
 
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="icon" className="relative text-slate-500 hover:text-slate-900 rounded-xl hover:bg-slate-50">
+          <div className="flex items-center space-x-3">
+            {/* Quick Language Selector */}
+            <div className="relative flex items-center">
+              <Globe className="h-4 w-4 text-slate-400 mr-1.5 hidden sm:inline" />
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as any)}
+                className="text-xs font-semibold bg-slate-50 dark:bg-[#1C2318] border border-slate-200 dark:border-[#273322] rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer transition-colors"
+                title="Select Indian Language"
+              >
+                {languages.map((l) => (
+                  <option key={l.code} value={l.code} className="bg-white dark:bg-[#151A12] text-slate-800 dark:text-slate-100">
+                    {l.nativeName} ({l.name})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quick Dark/Light Theme Toggle */}
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleTheme();
+              }}
+              className="relative p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-[#134E2F] dark:hover:text-[#C1F3BA] hover:bg-[#F2FBF1] dark:hover:bg-[#1C2318] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40 active:scale-95"
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {isDark ? (
+                <Sun className="h-5 w-5 text-amber-400 transition-transform duration-300 hover:rotate-45 pointer-events-none" />
+              ) : (
+                <Moon className="h-5 w-5 text-slate-700 dark:text-slate-300 transition-transform duration-300 hover:-rotate-12 pointer-events-none" />
+              )}
+            </button>
+
+            {/* Notifications */}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="relative text-slate-600 dark:text-slate-300 hover:text-[#134E2F] dark:hover:text-[#C1F3BA] rounded-xl hover:bg-[#F2FBF1] dark:hover:bg-[#1C2318] transition-colors"
+            >
               <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-rose-500"></span>
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#FF6554]"></span>
             </Button>
             
-            <Link to="/profile" className="hidden sm:flex items-center space-x-2">
-              <div className="h-8 w-8 rounded-xl bg-blue-600/10 flex items-center justify-center overflow-hidden border border-blue-100">
+            {/* Patient Profile */}
+            <Link to="/profile" className="hidden sm:flex items-center space-x-2" title="View Patient Profile">
+              <div className="h-8 w-8 rounded-xl bg-[#C1F3BA]/25 flex items-center justify-center overflow-hidden border border-[#C1F3BA]/50 shadow-xs">
                 <img 
-                  src={user?.avatarUrl || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=transparent"} 
-                  alt="User Avatar" 
+                  src={getAvatarUrl(user?.avatarUrl, user?.name)} 
+                  alt={user?.name || "User Avatar"} 
+                  className="w-full h-full object-cover"
                 />
               </div>
             </Link>

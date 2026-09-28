@@ -30,7 +30,7 @@ export function formatAuthError(error: any): string {
   const lower = message.toLowerCase();
 
   if (lower.includes('invalid login credentials') || lower.includes('invalid credential') || lower.includes('invalid grant')) {
-    return 'Invalid email or password. Please check your credentials and try again.';
+    return 'Invalid email or password. If you just registered, please verify your email in your inbox first.';
   }
 
   if (lower.includes('user already registered') || lower.includes('already exists') || lower.includes('unique constraint')) {

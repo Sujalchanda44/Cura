@@ -77,6 +77,31 @@ async function seedDatabase() {
       targets
     });
 
+    // 3b. Create Health Profile for Admin User
+    await memoryDb.create('healthProfiles', {
+      id: 'hp_admin_001',
+      userId: adminUser.id,
+      heightCm: 175,
+      height: 175,
+      weightKg: 70,
+      weight: 70,
+      age: 32,
+      gender: 'other',
+      bloodType: 'O+',
+      activityLevel: ACTIVITY_LEVELS.MODERATELY_ACTIVE,
+      healthGoal: HEALTH_GOALS.MAINTAIN_WEIGHT,
+      healthGoals: [HEALTH_GOALS.MAINTAIN_WEIGHT],
+      allergies: [],
+      dietaryRestrictions: [],
+      medicalConditions: [],
+      isOnboarded: true,
+      bmi: 22.9,
+      bmiCategory: 'Normal',
+      bmr: 1650,
+      tdee: 2200,
+      targets
+    });
+
     // 4. Create Today's Health Metrics
     const today = new Date().toISOString().split('T')[0];
     await memoryDb.create('healthMetrics', {

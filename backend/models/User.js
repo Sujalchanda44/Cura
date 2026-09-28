@@ -18,7 +18,7 @@ class User {
           .select('*')
           .eq('id', id)
           .maybeSingle();
-        if (!error && data) return data;
+        if (!error) return data || null;
       } catch (err) {
         logger.error('Supabase findById error, falling back:', err);
       }
@@ -36,7 +36,7 @@ class User {
           .select('*')
           .eq('email', cleanEmail)
           .maybeSingle();
-        if (!error && data) return data;
+        if (!error) return data || null;
       } catch (err) {
         logger.error('Supabase findByEmail error, falling back:', err);
       }
@@ -269,7 +269,12 @@ class User {
   static toSafeObject(user) {
     if (!user) return null;
     const { password, resetPasswordToken, resetPasswordExpires, ...safeUser } = user;
-    return safeUser;
+    return {
+      ...safeUser,
+      isOnboarded: safeUser.isOnboarded !== undefined 
+        ? Boolean(safeUser.isOnboarded) 
+        : !!safeUser.settings?.isOnboarded
+    };
   }
 }
 

@@ -134,16 +134,16 @@ export default function AIAssistant() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-[calc(100vh-10rem)] md:h-full">
+      <div className="flex-1 flex flex-col bg-white dark:bg-[#151A12] rounded-2xl border border-slate-200 dark:border-[#273322] shadow-sm overflow-hidden h-[calc(100vh-10rem)] md:h-full transition-colors">
         {/* Chat Header */}
-        <div className="h-16 border-b border-slate-100 flex items-center px-6 bg-white shrink-0 z-10">
+        <div className="h-16 border-b border-slate-100 dark:border-[#273322] flex items-center px-6 bg-white dark:bg-[#151A12] shrink-0 z-10 transition-colors">
           <div className="flex items-center space-x-3">
-            <div className="h-10 w-10 bg-primary rounded-full flex items-center justify-center shrink-0">
-              <Sparkles className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 bg-[#C1F3BA] rounded-full flex items-center justify-center shrink-0">
+              <Sparkles className="h-5 w-5 text-[#134E2F]" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-900 leading-tight">Cura+ AI</h2>
-              <div className="flex items-center text-xs text-slate-500">
+              <h2 className="font-bold text-slate-900 dark:text-slate-100 leading-tight">Cura+ AI</h2>
+              <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
                 <span className="h-2 w-2 rounded-full bg-success mr-1.5 inline-block"></span>
                 AI Health Assistant • Online
               </div>
@@ -152,7 +152,7 @@ export default function AIAssistant() {
         </div>
 
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-slate-50/50">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-slate-50/50 dark:bg-[#0D1109] transition-colors">
           {messages.map((msg) => (
             <div 
               key={msg.id} 
@@ -166,7 +166,7 @@ export default function AIAssistant() {
                 msg.sender === 'user' ? "flex-row-reverse" : "flex-row"
               )}>
                 {msg.sender === 'ai' && (
-                  <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center shrink-0 mr-3 mt-1 shadow-sm text-white">
+                  <div className="h-8 w-8 bg-[#134E2F] text-[#C1F3BA] rounded-full flex items-center justify-center shrink-0 mr-3 mt-1 shadow-sm">
                     <Sparkles className="h-4 w-4" />
                   </div>
                 )}
@@ -175,30 +175,30 @@ export default function AIAssistant() {
                   <div className={cn(
                     "px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm whitespace-pre-wrap break-words text-left inline-block",
                     msg.sender === 'user' 
-                      ? "bg-blue-600 text-white rounded-br-sm shadow-blue-500/10" 
-                      : "bg-white border border-slate-200 text-slate-700 rounded-bl-sm"
+                      ? "bg-[#134E2F] text-white rounded-br-sm shadow-[#134E2F]/10" 
+                      : "bg-white dark:bg-[#1C2318] border border-slate-200 dark:border-[#273322] text-slate-800 dark:text-slate-100 rounded-bl-sm"
                   )}>
                     {msg.text}
                   </div>
                   
                   {msg.type === 'nutrition_card' && msg.data && (
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm w-full max-w-sm">
+                    <div className="bg-white dark:bg-[#1C2318] border border-slate-200 dark:border-[#273322] rounded-xl p-4 shadow-sm w-full max-w-sm">
                       <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
-                          <div className="text-lg font-bold text-slate-900">{msg.data.cals}</div>
-                          <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Calories</div>
+                        <div className="bg-slate-50 dark:bg-[#151A12] p-3 rounded-lg text-center border border-slate-100 dark:border-[#273322]">
+                          <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{msg.data.cals}</div>
+                          <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 mt-1">Calories</div>
                         </div>
-                        <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
-                          <div className="text-lg font-bold text-slate-900">{msg.data.pro}</div>
-                          <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Protein</div>
+                        <div className="bg-slate-50 dark:bg-[#151A12] p-3 rounded-lg text-center border border-slate-100 dark:border-[#273322]">
+                          <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{msg.data.pro}</div>
+                          <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 mt-1">Protein</div>
                         </div>
-                        <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
-                          <div className="text-lg font-bold text-slate-900">{msg.data.fib}</div>
-                          <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Fiber</div>
+                        <div className="bg-slate-50 dark:bg-[#151A12] p-3 rounded-lg text-center border border-slate-100 dark:border-[#273322]">
+                          <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{msg.data.fib}</div>
+                          <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 mt-1">Fiber</div>
                         </div>
-                        <div className="bg-slate-50 p-3 rounded-lg text-center border border-slate-100">
-                          <div className="text-lg font-bold text-slate-900">{msg.data.fat}</div>
-                          <div className="text-[10px] uppercase font-bold text-slate-500 mt-1">Fat</div>
+                        <div className="bg-slate-50 dark:bg-[#151A12] p-3 rounded-lg text-center border border-slate-100 dark:border-[#273322]">
+                          <div className="text-lg font-bold text-slate-900 dark:text-slate-100">{msg.data.fat}</div>
+                          <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 mt-1">Fat</div>
                         </div>
                       </div>
                     </div>
@@ -210,11 +210,11 @@ export default function AIAssistant() {
           {isTyping && (
             <div className="w-full flex justify-start">
               <div className="flex max-w-[75%] items-center">
-                <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center shrink-0 mr-3 shadow-sm text-white">
+                <div className="h-8 w-8 bg-[#134E2F] text-[#C1F3BA] rounded-full flex items-center justify-center shrink-0 mr-3 shadow-sm">
                   <Sparkles className="h-4 w-4" />
                 </div>
-                <div className="px-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-500 text-sm flex items-center space-x-1.5 shadow-sm rounded-bl-sm">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                <div className="px-4 py-3 rounded-2xl bg-white dark:bg-[#1C2318] border border-slate-200 dark:border-[#273322] text-slate-500 dark:text-slate-400 text-sm flex items-center space-x-1.5 shadow-sm rounded-bl-sm">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#134E2F] dark:text-[#C1F3BA]" />
                   <span>Cura+ is thinking...</span>
                 </div>
               </div>
@@ -224,8 +224,8 @@ export default function AIAssistant() {
         </div>
 
         {/* Chat Input */}
-        <div className="p-4 bg-white border-t border-slate-100 shrink-0">
-          <form onSubmit={handleSendMessage} className="flex items-end space-x-2 bg-slate-50 rounded-2xl border border-slate-200 p-2 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+        <div className="p-4 bg-white dark:bg-[#151A12] border-t border-slate-100 dark:border-[#273322] shrink-0 transition-colors">
+          <form onSubmit={handleSendMessage} className="flex items-end space-x-2 bg-slate-50 dark:bg-[#1C2318] rounded-2xl border border-slate-200 dark:border-[#273322] p-2 focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary transition-all">
             <div className="flex items-center space-x-1 pb-1 pl-1 shrink-0">
               <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary rounded-full">
                 <ImageIcon className="h-5 w-5" />
@@ -245,7 +245,7 @@ export default function AIAssistant() {
                 }
               }}
               placeholder="Message Cura+ AI..."
-              className="flex-1 max-h-32 min-h-[40px] bg-transparent border-0 focus:ring-0 resize-none py-2 px-2 text-sm text-slate-700 placeholder:text-slate-400"
+              className="flex-1 max-h-32 min-h-[40px] bg-transparent border-0 focus:ring-0 resize-none py-2 px-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none"
               rows={1}
             />
             
@@ -253,7 +253,7 @@ export default function AIAssistant() {
               <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary rounded-full">
                 <Mic className="h-5 w-5" />
               </Button>
-              <Button type="submit" disabled={!inputValue.trim() || isTyping} size="icon" className="h-8 w-8 rounded-full bg-primary text-white shadow-sm disabled:opacity-50 transition-all hover:scale-105">
+              <Button type="submit" disabled={!inputValue.trim() || isTyping} size="icon" className="h-8 w-8 rounded-full bg-[#134E2F] text-white shadow-sm disabled:opacity-50 transition-all hover:scale-105 cursor-pointer">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
