@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Activity, Shield, Brain, Sparkles,
+  Activity, Shield, Brain,
   ArrowRight, Apple,
   Droplet, Moon, Pill, FileText, ScanBarcode,
   LayoutDashboard
@@ -88,17 +88,6 @@ export const Landing: React.FC = () => {
           <div className="absolute -top-12 -right-12 w-64 h-64 border-[40px] border-white/20 rounded-full pointer-events-none" />
 
           <div className="flex-1 max-w-xl text-left">
-            <motion.div
-              variants={fadeInUp}
-              initial="hidden"
-              animate="visible"
-              custom={0}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#134E2F]/10 text-[#134E2F] text-xs font-bold mb-6 tracking-wide"
-            >
-              <Sparkles className="w-3.5 h-3.5 fill-current" />
-              <span>Next-Gen AI Healthcare Platform</span>
-            </motion.div>
-
             <motion.h1
               variants={fadeInUp}
               initial="hidden"
