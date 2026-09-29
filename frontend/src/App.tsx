@@ -16,7 +16,6 @@ import Profile from '@/pages/Profile';
 import Settings from '@/pages/Settings';
 import Scanner from '@/pages/Scanner';
 import ProductAnalysis from '@/pages/ProductAnalysis';
-import Recommendations from '@/pages/Recommendations';
 import AIAssistant from '@/pages/AIAssistant';
 
 function AppRoutes() {
@@ -78,7 +77,7 @@ function AppRoutes() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/scanner" element={<Scanner />} />
           <Route path="/product-analysis" element={<ProductAnalysis />} />
-          <Route path="/recommendations" element={<Recommendations />} />
+          <Route path="/recommendations" element={<Navigate to="/dashboard" replace />} />
           <Route path="/ai-assistant" element={<AIAssistant />} />
           <Route path="/assistant" element={<Navigate to="/ai-assistant" replace />} />
         </Route>

@@ -75,8 +75,8 @@ export default function ProductAnalysis() {
   const product = productData;
   
   const score = product.nutriScore || 85;
-  const isSafe = product.safetyStatus === 'SAFE' || product.allergenCheck?.safeToConsume !== false;
-  const conflicts = product.allergenCheck?.allergenConflicts || [];
+  const isSafe = product.riskLevel === 'LOW' || (product.riskLevel !== 'HIGH' && (product.safetyStatus === 'SAFE' || product.allergenCheck?.safeToConsume !== false));
+  const conflicts = product.matchedUserAllergies?.map((m: any) => typeof m === 'string' ? m : m.allergen) || product.allergenCheck?.allergenConflicts || [];
 
   return (
     <div className="space-y-6 pb-24">

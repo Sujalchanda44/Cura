@@ -5,7 +5,6 @@
 
 const User = require('../models/User');
 const HealthProfile = require('../models/HealthProfile');
-const HealthMetric = require('../models/HealthMetric');
 const ResponseHandler = require('../utils/responseHandler');
 const { HTTP_STATUS } = require('../config/constants');
 
@@ -51,23 +50,8 @@ class UserController {
         isOnboarded: true
       });
 
-      // Seed historical health metrics for today so user starts with trend data right away
-      const today = new Date().toISOString().split('T')[0];
-      const initialMetrics = {
-        weightKg: Number(req.body.weightKg || req.body.weight || 70),
-        bloodPressureSystolic: req.body.bloodPressureSystolic ? Number(req.body.bloodPressureSystolic) : null,
-        bloodPressureDiastolic: req.body.bloodPressureDiastolic ? Number(req.body.bloodPressureDiastolic) : null,
-        restingHeartRate: req.body.restingHeartRate ? Number(req.body.restingHeartRate) : 72,
-        heartRateAvg: req.body.restingHeartRate ? Number(req.body.restingHeartRate) : 72,
-        oxygenSaturation: req.body.oxygenSaturation ? Number(req.body.oxygenSaturation) : null,
-        bloodGlucose: req.body.bloodGlucose ? Number(req.body.bloodGlucose) : null,
-        glucoseType: req.body.glucoseType || 'fasting',
-        bodyTemperature: req.body.bodyTemperature ? Number(req.body.bodyTemperature) : null,
-        sleepHours: Number(req.body.sleepHours) || 8,
-        waterMl: Math.round((parseFloat(req.body.waterIntake) || 2.5) * 1000) || 2500,
-      };
-
-      await HealthMetric.logDailyMetric(userId, today, initialMetrics);
+      // Health metrics (steps, water, sleep, calories) should only be recorded
+      // when the user explicitly logs daily metrics, not auto-seeded on onboarding.
 
       // Fetch current user settings to merge with isOnboarded flag
       const existingUser = await User.findById(userId);

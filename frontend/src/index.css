@@ -203,3 +203,22 @@ html.dark ::-webkit-scrollbar-thumb:hover,
 html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
   background: #3a4b33;
 }
+
+@keyframes scan-beam {
+  0% {
+    top: 0%;
+    opacity: 0.8;
+  }
+  50% {
+    top: 85%;
+    opacity: 1;
+  }
+  100% {
+    top: 0%;
+    opacity: 0.8;
+  }
+}
+
+.animate-scan-beam {
+  animation: scan-beam 2.5s ease-in-out infinite;
+}

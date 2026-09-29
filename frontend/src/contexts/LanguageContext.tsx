@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 
-export type LanguageCode = 
+export type LanguageCode =
   | 'en-IN' // English (India)
   | 'hi'    // Hindi (हिन्दी)
   | 'bn'    // Bengali (বাংলা)
@@ -19,7 +19,7 @@ export interface LanguageOption {
 }
 
 export const INDIAN_LANGUAGES: LanguageOption[] = [
-  { code: 'en-IN', name: 'English (India)', nativeName: 'English (India)' },
+  { code: 'en-IN', name: 'English (India)', nativeName: '' },
   { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
   { code: 'bn', name: 'Bengali', nativeName: 'বাংলা' },
   { code: 'ta', name: 'Tamil', nativeName: 'தமிழ்' },
@@ -722,7 +722,7 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType>({
   language: 'en-IN',
-  setLanguage: () => {},
+  setLanguage: () => { },
   t: (key: string, defaultText?: string) => defaultText || key,
   languages: INDIAN_LANGUAGES,
 });

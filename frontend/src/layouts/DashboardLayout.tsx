@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  LayoutDashboard, ScanLine, Utensils, 
+  LayoutDashboard, ScanLine, 
   MessageSquareHeart, Activity, User, Settings, 
-  Bell, LogOut, Moon, Sun, Globe
+  LogOut, Moon, Sun, Globe
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/hooks/useAuth';
 import { getAvatarUrl } from '@/lib/avatar';
@@ -31,7 +30,6 @@ export default function DashboardLayout() {
   const navigation = [
     { name: t('nav.dashboard', 'Dashboard'), href: '/dashboard', icon: LayoutDashboard },
     { name: t('nav.scanner', 'Food Scanner'), href: '/scanner', icon: ScanLine },
-    { name: t('nav.recommendations', 'Recommendations'), href: '/recommendations', icon: Utensils },
     { name: t('nav.aiAssistant', 'AI Assistant'), href: '/ai-assistant', icon: MessageSquareHeart },
     { name: t('nav.reports', 'Health Reports'), href: '/reports', icon: Activity },
   ];
@@ -196,15 +194,6 @@ export default function DashboardLayout() {
               )}
             </button>
 
-            {/* Notifications */}
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="relative text-slate-600 dark:text-slate-300 hover:text-[#134E2F] dark:hover:text-[#C1F3BA] rounded-xl hover:bg-[#F2FBF1] dark:hover:bg-[#1C2318] transition-colors"
-            >
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#FF6554]"></span>
-            </Button>
             
             {/* Patient Profile */}
             <Link to="/profile" className="hidden sm:flex items-center space-x-2" title="View Patient Profile">

@@ -1,14 +1,19 @@
 /**
  * Smart Scanner Controller
- * Unified endpoint for Barcode Scanning (OpenFoodFacts) and Food Image Recognition (Computer Vision)
+ * Personalized Food & Allergy Safety Scanner
+ * Integrates Multimodal Vision AI, Barcode Scanner, and Authenticated User Health Profile
  */
 
 const OpenFoodFactsService = require('../services/openFoodFactsService');
 const GeminiService = require('../services/geminiService');
+const FoodAnalysisGateway = require('../services/foodAnalysisGateway');
+const AllergySafetyEngine = require('../services/allergySafetyEngine');
 const HealthProfile = require('../models/HealthProfile');
+const User = require('../models/User');
 const NutritionLog = require('../models/NutritionLog');
 const ResponseHandler = require('../utils/responseHandler');
 const { HTTP_STATUS } = require('../config/constants');
+const logger = require('../utils/logger');
 
 class ScannerController {
   /**
@@ -20,18 +25,55 @@ class ScannerController {
     try {
       const { barcode, imageBase64, textHint, mealType, autoLog } = req.body;
       const file = req.file;
+      const userId = req.user.id;
 
-      const userProfile = await HealthProfile.findByUserId(req.user.id);
-      const userAllergies = userProfile?.allergies || [];
+      // 1. Retrieve the currently authenticated user's stored health profile
+      const userRecord = await User.findById(userId);
+      const healthProfile = await HealthProfile.findByUserId(userId);
+
+      const onboardingData = healthProfile?.settings?.onboardingData || userRecord?.settings?.onboardingData || {};
+
+      // Consolidate complete health profile for personalized clinical evaluation
+      const userHealthContext = {
+        name: userRecord?.name || req.user.name || 'User',
+        allergies: healthProfile?.allergies?.length ? healthProfile.allergies : (onboardingData.allergies || []),
+        structuredAllergies: healthProfile?.structuredAllergies || onboardingData.structuredAllergies || {},
+        foodIntolerances: healthProfile?.foodIntolerances || onboardingData.foodIntolerances || [],
+        medicalConditions: healthProfile?.medicalConditions?.length ? healthProfile.medicalConditions : (onboardingData.medicalConditions || []),
+        dietType: healthProfile?.dietType || onboardingData.dietType || 'balanced',
+        dietaryRestrictions: healthProfile?.dietaryRestrictions || onboardingData.dietaryRestrictions || [],
+        age: healthProfile?.age || onboardingData.age || 25,
+        gender: healthProfile?.gender || onboardingData.gender || 'not specified',
+        heightCm: healthProfile?.heightCm || onboardingData.heightCm || 170,
+        weightKg: healthProfile?.weightKg || onboardingData.weightKg || 70,
+        medications: healthProfile?.medications || onboardingData.medications || '',
+        healthGoals: healthProfile?.healthGoals || onboardingData.healthGoals || ['general_wellness']
+      };
 
       let result = null;
       let scanType = 'unknown';
 
-      // 1. If Barcode is supplied
+      // 2. Barcode Scanning Pipeline
       if (barcode) {
         scanType = 'barcode';
         const product = await OpenFoodFactsService.getProductByBarcode(barcode);
-        const allergenCheck = OpenFoodFactsService.checkAllergens(product, userAllergies);
+
+        const safetyEvaluation = AllergySafetyEngine.evaluatePersonalizedSafety(
+          {
+            foodName: product.productName,
+            ingredients: product.ingredientsList || [],
+            ingredientsText: product.ingredientsText || '',
+            nutrition: {
+              calories: product.nutritionPer100g?.calories || 0,
+              protein: product.nutritionPer100g?.protein || 0,
+              carbohydrates: product.nutritionPer100g?.carbs || 0,
+              sugar: product.nutritionPer100g?.sugar || 0,
+              fat: product.nutritionPer100g?.fat || 0,
+              sodium: product.nutritionPer100g?.sodium || 0,
+            }
+          },
+          userHealthContext
+        );
 
         result = {
           scanType,
@@ -39,63 +81,134 @@ class ScannerController {
           brand: product.brand,
           barcode: product.barcode,
           nutriScore: product.nutriScore,
-          servingSize: product.servingSize,
+          servingSize: product.servingSize || 'Per 100g',
+          isPackagedProduct: true,
+          isUnknownFood: false,
+          confidence: 0.98,
+          provider: 'barcode (openfoodfacts)',
+          isFallbackMode: false,
+          isLimitedAnalysis: false,
+          detectedIngredients: product.ingredientsList || [],
+          ingredientsText: product.ingredientsText || '',
+          possibleAllergens: product.allergens || [],
+          nutrition: {
+            calories: product.nutritionPer100g?.calories || 0,
+            protein: product.nutritionPer100g?.protein || 0,
+            carbohydrates: product.nutritionPer100g?.carbs || 0,
+            sugar: product.nutritionPer100g?.sugar || 0,
+            fat: product.nutritionPer100g?.fat || 0,
+            sodium: product.nutritionPer100g?.sodium || 0,
+          },
           nutritionalBreakdown: product.nutritionPer100g,
-          ingredients: product.ingredientsList,
-          ingredientsText: product.ingredientsText,
-          allergenCheck,
+          riskLevel: safetyEvaluation.riskLevel,
+          riskReasons: safetyEvaluation.riskReasons,
+          matchedUserAllergies: safetyEvaluation.matchedUserAllergies,
+          matchedIntolerances: safetyEvaluation.matchedIntolerances,
+          healthConcerns: safetyEvaluation.healthConcerns,
+          profileChecks: safetyEvaluation.profileChecks,
+          recommendation: safetyEvaluation.recommendation,
+          alternativeSuggestion: safetyEvaluation.alternativeSuggestion,
           imageUrl: product.imageUrl,
-          safetyStatus: allergenCheck.safeToConsume ? 'SAFE' : 'ALLERGEN_WARNING'
+          labelVerificationRequired: true,
+          safetyStatus: safetyEvaluation.riskLevel === 'HIGH' ? 'ALLERGEN_WARNING' : 'SAFE'
         };
       }
-      // 2. If Image or Base64 is supplied
+      // 3. Multimodal Vision Pipeline via AI Gateway (Primary -> Secondary -> Emergency Fallback)
       else if (file || imageBase64 || textHint) {
         scanType = 'image_vision';
-        const visionAnalysis = await GeminiService.analyzeFoodImage(file, textHint, imageBase64);
-        
-        // Check allergens for vision detected ingredients
-        const allergenCheck = OpenFoodFactsService.checkAllergens(
-          {
-            ingredientsText: visionAnalysis.ingredients?.join(', ') || '',
-            ingredientsList: visionAnalysis.ingredients || [],
-            allergens: visionAnalysis.allergensDetected || []
-          },
-          userAllergies
+        const visionAnalysis = await FoodAnalysisGateway.analyzeFoodImage(
+          file,
+          userHealthContext,
+          textHint,
+          imageBase64
         );
 
         result = {
           scanType,
-          foodName: visionAnalysis.identifiedFood,
+          foodName: visionAnalysis.foodName,
+          brand: visionAnalysis.brand || (visionAnalysis.isPackagedProduct ? 'Packaged Product' : 'Fresh Meal / Dish'),
           confidence: visionAnalysis.confidence,
-          servingSize: visionAnalysis.estimatedServingSize,
-          nutritionalBreakdown: visionAnalysis.nutritionEstimate,
-          ingredients: visionAnalysis.ingredients,
-          allergenCheck,
-          healthInsights: visionAnalysis.healthInsights,
+          servingSize: visionAnalysis.servingSize,
+          isPackagedProduct: visionAnalysis.isPackagedProduct,
+          isUnknownFood: visionAnalysis.isUnknownFood,
+          provider: visionAnalysis.provider || 'primary-ai',
+          isFallbackMode: Boolean(visionAnalysis.isFallbackMode),
+          isLimitedAnalysis: Boolean(visionAnalysis.isLimitedAnalysis),
+          detectedIngredients: visionAnalysis.detectedIngredients,
+          ingredients: visionAnalysis.detectedIngredients,
+          possibleAllergens: visionAnalysis.possibleAllergens,
+          nutrition: visionAnalysis.nutrition,
+          nutritionalBreakdown: {
+            calories: visionAnalysis.nutrition?.calories || 0,
+            protein: visionAnalysis.nutrition?.protein || 0,
+            carbs: visionAnalysis.nutrition?.carbohydrates || 0,
+            sugar: visionAnalysis.nutrition?.sugar || 0,
+            fat: visionAnalysis.nutrition?.fat || 0,
+            sodium: visionAnalysis.nutrition?.sodium || 0,
+            fiber: 4
+          },
+          riskLevel: visionAnalysis.riskLevel,
+          riskReasons: visionAnalysis.riskReasons,
+          matchedUserAllergies: visionAnalysis.matchedUserAllergies,
+          matchedIntolerances: visionAnalysis.matchedIntolerances,
+          healthConcerns: visionAnalysis.healthConcerns,
+          profileChecks: visionAnalysis.profileChecks,
+          recommendation: visionAnalysis.recommendation,
+          alternativeSuggestion: visionAnalysis.alternativeSuggestion,
+          uncertainIngredients: visionAnalysis.uncertainIngredients || [],
+          labelVerificationRequired: visionAnalysis.labelVerificationRequired,
           imageUrl: file ? `/uploads/${file.filename}` : null,
-          safetyStatus: allergenCheck.safeToConsume ? 'SAFE' : 'ALLERGEN_WARNING'
+          safetyStatus: visionAnalysis.riskLevel === 'HIGH' ? 'ALLERGEN_WARNING' : 'SAFE'
         };
       } else {
         return ResponseHandler.error(
           res,
-          'Please provide a barcode, food photo image, or imageBase64 to analyze.',
+          'Please provide a food photo (JPEG, PNG, WebP) or barcode to analyze.',
           HTTP_STATUS.BAD_REQUEST
         );
       }
 
-      // 3. Optional Auto-logging to Food Log
+      // Attach simplified presentation fields (Food Health Score, short verdict, etc.)
+      const scoreData = AllergySafetyEngine.computeFoodHealthScore(
+        {
+          foodName: result.foodName,
+          ingredients: result.detectedIngredients,
+          nutrition: result.nutrition
+        },
+        result,
+        userHealthContext
+      );
+
+      result.healthScore = scoreData.healthScore;
+      result.status = scoreData.status;
+      result.shortVerdict = scoreData.shortVerdict;
+      result.mainConcern = scoreData.mainConcern;
+      result.betterChoice = scoreData.betterChoice;
+      result.energyImpact = scoreData.energyImpact;
+      result.allergyConflict = scoreData.allergyConflict;
+      result.allergyName = scoreData.allergyName;
+      result.detailedAnalysis = scoreData.detailedAnalysis;
+
+      // 4. Attach Summary of User Health Context Checked
+      result.userProfileSummary = {
+        registeredAllergies: userHealthContext.allergies,
+        medicalConditions: userHealthContext.medicalConditions,
+        dietType: userHealthContext.dietType
+      };
+
+      // 5. Optional Auto-logging to Food Log
       let loggedMeal = null;
       if (autoLog === true || autoLog === 'true') {
         loggedMeal = await NutritionLog.create({
           userId: req.user.id,
           mealType: mealType || 'lunch',
           name: result.foodName,
-          calories: result.nutritionalBreakdown.calories || 0,
-          protein: result.nutritionalBreakdown.protein || 0,
-          carbs: result.nutritionalBreakdown.carbs || 0,
-          fat: result.nutritionalBreakdown.fat || 0,
-          fiber: result.nutritionalBreakdown.fiber || 0,
-          ingredients: result.ingredients || [],
+          calories: result.nutrition?.calories || 0,
+          protein: result.nutrition?.protein || 0,
+          carbs: result.nutrition?.carbohydrates || 0,
+          fat: result.nutrition?.fat || 0,
+          fiber: 4,
+          ingredients: result.detectedIngredients || [],
           barcode: result.barcode || null,
           imageUrl: result.imageUrl || null
         });
@@ -106,6 +219,7 @@ class ScannerController {
         loggedMeal
       });
     } catch (error) {
+      logger.error('ScannerController.analyze error:', error);
       next(error);
     }
   }

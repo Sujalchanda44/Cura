@@ -8,6 +8,7 @@ const HealthMetric = require('../models/HealthMetric');
 const NutritionLog = require('../models/NutritionLog');
 const HealthScoreService = require('../services/healthScoreService');
 const ResponseHandler = require('../utils/responseHandler');
+const { getRequestDate } = require('../utils/dateHelper');
 
 class DashboardController {
   /**
@@ -17,7 +18,7 @@ class DashboardController {
   static async getSummary(req, res, next) {
     try {
       const userId = req.user.id;
-      const today = req.query.date || new Date().toISOString().split('T')[0];
+      const today = getRequestDate(req);
 
       const [profile, metrics, nutritionTotals, recentMeals] = await Promise.all([
         HealthProfile.findByUserId(userId),
@@ -100,7 +101,7 @@ class DashboardController {
   static async getHealthScore(req, res, next) {
     try {
       const userId = req.user.id;
-      const today = req.query.date || new Date().toISOString().split('T')[0];
+      const today = getRequestDate(req);
 
       const [profile, metrics, nutritionTotals] = await Promise.all([
         HealthProfile.findByUserId(userId),
@@ -122,12 +123,20 @@ class DashboardController {
   static async getWeeklyReport(req, res, next) {
     try {
       const userId = req.user.id;
-      const now = new Date();
-      const endStr = now.toISOString().split('T')[0];
+      const today = getRequestDate(req);
+      const [year, month, day] = today.split('-').map(Number);
 
-      const past7 = new Date();
-      past7.setDate(now.getDate() - 6);
-      const startStr = past7.toISOString().split('T')[0];
+      const chartDates = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(year, month - 1, day - i);
+        const yStr = d.getFullYear();
+        const mStr = String(d.getMonth() + 1).padStart(2, '0');
+        const dStr = String(d.getDate()).padStart(2, '0');
+        chartDates.push({ dateKey: `${yStr}-${mStr}-${dStr}`, d });
+      }
+
+      const startStr = chartDates[0].dateKey;
+      const endStr = chartDates[chartDates.length - 1].dateKey;
 
       const [profile, metricsList, nutritionList] = await Promise.all([
         HealthProfile.findByUserId(userId),
@@ -142,10 +151,8 @@ class DashboardController {
       let totalWater = 0;
       let totalSleep = 0;
 
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(past7);
-        d.setDate(past7.getDate() + i);
-        const dateKey = d.toISOString().split('T')[0];
+      for (let i = 0; i < chartDates.length; i++) {
+        const { dateKey, d } = chartDates[i];
 
         const dayMetrics = metricsList.find(m => m.date === dateKey) || { steps: 0, waterMl: 0, sleepHours: 0 };
         const dayNutrition = nutritionList.filter(n => n.date === dateKey);

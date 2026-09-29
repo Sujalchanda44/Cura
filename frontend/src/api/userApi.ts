@@ -11,7 +11,7 @@ export const updateUserProfile = async (userData: any) => {
 };
 
 export const updateHealthProfile = async (data: any) => {
-  const response = await apiClient.post('/health-profile', data);
+  const response = await apiClient.put('/health-profile', data);
   return response.data?.data;
 };
 
@@ -40,3 +40,14 @@ export const deleteAvatar = async () => {
   const response = await apiClient.delete('/user/avatar');
   return response.data?.data;
 };
+
+export const getGoalAnalysis = async (goalOptions?: any) => {
+  const response = await apiClient.post('/ai/goal-analysis', goalOptions || {});
+  return response.data?.data;
+};
+
+export const updateHealthGoals = async (goalData: any) => {
+  const response = await apiClient.put('/health-profile', goalData);
+  return response.data?.data;
+};
+

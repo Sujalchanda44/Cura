@@ -19,5 +19,7 @@ router.use(authenticate);
 router.post('/chat', validate(chatSchema), AIController.chat);
 router.get('/health-advice', AIController.getHealthAdvice);
 router.post('/meal-recommendation', AIController.getMealRecommendation);
+router.get('/goal-analysis', AIController.analyzeGoal);
+router.post('/goal-analysis', AIController.analyzeGoal);
 
 module.exports = router;

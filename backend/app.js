@@ -12,11 +12,7 @@ const { notFoundHandler, errorHandler } = require('./middleware/errorMiddleware'
 const app = express();
 
 // 1. Cross-Origin Resource Sharing (CORS)
-app.use(cors({
-  origin: '*', // Allow all origins for development/REST API clients
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(cors());
 
 // 2. Request Parsers
 app.use(express.json({ limit: '10mb' }));

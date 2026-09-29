@@ -101,6 +101,48 @@ class AIController {
       next(error);
     }
   }
+
+  /**
+   * AI Goal Proximity & Past Data Analysis
+   * Evaluates user past tracking and biometrics to determine proximity to goal
+   * GET or POST /api/ai/goal-analysis
+   */
+  static async analyzeGoal(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const today = new Date();
+      const pastDate = new Date();
+      pastDate.setDate(today.getDate() - 14);
+
+      const startDateStr = pastDate.toISOString().split('T')[0];
+      const endDateStr = today.toISOString().split('T')[0];
+
+      const [profile, historicalMetrics, nutritionTotals] = await Promise.all([
+        HealthProfile.findByUserId(userId),
+        HealthMetric.getRange(userId, startDateStr, endDateStr),
+        NutritionLog.findByUserDateRange(userId, startDateStr, endDateStr)
+      ]);
+
+      const goalOptions = {
+        ...(req.body || {}),
+        ...(req.query || {})
+      };
+
+      const analysis = await GeminiService.analyzeGoalProgress(
+        {
+          ...(profile || {}),
+          name: req.user.name
+        },
+        historicalMetrics,
+        nutritionTotals,
+        goalOptions
+      );
+
+      return ResponseHandler.success(res, 'Goal proximity analysis generated successfully', analysis);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = AIController;

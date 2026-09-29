@@ -23,24 +23,25 @@ async function startServer() {
 
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
-        logger.error(`Port ${config.port} is already in use by another process. Please terminate it or set a different PORT in .env`);
-      } else {
-        logger.error(`Server listen error:`, err);
+        logger.warn(`Port ${config.port} is busy. Retrying in 1.5 seconds...`);
+        setTimeout(() => {
+          server.close();
+          server.listen(config.port, HOST);
+        }, 1500);
+        return;
       }
+      logger.error(`Server listen error:`, err);
       process.exit(1);
     });
 
     // 3. Graceful Shutdown
     const handleShutdown = (signal) => {
-      logger.info(`Received ${signal}. Shutting down gracefully...`);
-      server.close(() => {
-        logger.info('HTTP server closed. Exiting process.');
-        process.exit(0);
-      });
+      logger.info(`Received ${signal}. Closing HTTP server...`);
+      server.close();
     };
 
-    process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-    process.on('SIGINT', () => handleShutdown('SIGINT'));
+    process.once('SIGTERM', () => handleShutdown('SIGTERM'));
+    process.once('SIGINT', () => handleShutdown('SIGINT'));
   } catch (error) {
     logger.error('Fatal server startup error:', error);
     process.exit(1);

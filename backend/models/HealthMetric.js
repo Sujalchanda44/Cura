@@ -17,8 +17,14 @@ class HealthMetric {
           .eq('date', date)
           .maybeSingle();
         if (!error && data) {
+          const isSubmitted = Boolean(
+            data.isDailyLogSubmitted || 
+            (data.steps > 0 && (data.activeCaloriesBurnt > 0 || data.workoutMinutes > 0))
+          );
           return {
             ...data,
+            isDailyLogSubmitted: isSubmitted,
+            dailyLogSubmittedAt: data.dailyLogSubmittedAt || null,
             waterIntake: data.waterMl,
             caloriesBurned: data.activeCaloriesBurnt,
             exerciseDuration: data.workoutMinutes || data.exerciseDuration || 0,
@@ -38,8 +44,14 @@ class HealthMetric {
 
     const record = await memoryDb.findOne('healthMetrics', { userId, date });
     if (record) {
+      const isSubmitted = Boolean(
+        record.isDailyLogSubmitted || 
+        (record.steps > 0 && (record.activeCaloriesBurnt > 0 || record.workoutMinutes > 0 || record.exerciseDuration > 0))
+      );
       return {
         ...record,
+        isDailyLogSubmitted: isSubmitted,
+        dailyLogSubmittedAt: record.dailyLogSubmittedAt || null,
         waterIntake: record.waterMl,
         caloriesBurned: record.activeCaloriesBurnt,
         exerciseDuration: record.workoutMinutes || record.exerciseDuration || 0
@@ -50,6 +62,8 @@ class HealthMetric {
     return {
       userId,
       date,
+      isDailyLogSubmitted: false,
+      dailyLogSubmittedAt: null,
       steps: 0,
       targetSteps: 8000,
       waterMl: 0,
@@ -111,7 +125,9 @@ class HealthMetric {
       oxygenSaturation: updateData.oxygenSaturation !== undefined ? updateData.oxygenSaturation : (existing?.oxygenSaturation || null),
       bloodGlucose: updateData.bloodGlucose !== undefined ? updateData.bloodGlucose : (existing?.bloodGlucose || null),
       glucoseType: updateData.glucoseType || existing?.glucoseType || 'fasting',
-      bodyTemperature: updateData.bodyTemperature !== undefined ? updateData.bodyTemperature : (existing?.bodyTemperature || null)
+      bodyTemperature: updateData.bodyTemperature !== undefined ? updateData.bodyTemperature : (existing?.bodyTemperature || null),
+      isDailyLogSubmitted: updateData.isDailyLogSubmitted !== undefined ? Boolean(updateData.isDailyLogSubmitted) : (existing?.isDailyLogSubmitted || false),
+      dailyLogSubmittedAt: updateData.dailyLogSubmittedAt || existing?.dailyLogSubmittedAt || (updateData.isDailyLogSubmitted ? new Date().toISOString() : null)
     };
 
     const supabasePayload = {

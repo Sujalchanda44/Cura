@@ -22,8 +22,14 @@ const config = {
     saltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 10
   },
   gemini: {
-    apiKey: process.env.GEMINI_API_KEY || '',
+    apiKey: process.env.PRIMARY_AI_API_KEY || process.env.GEMINI_API_KEY || '',
     model: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite'
+  },
+  secondaryAi: {
+    apiKey: process.env.SECONDARY_AI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || '',
+    provider: process.env.SECONDARY_AI_PROVIDER || 'groq',
+    model: process.env.SECONDARY_AI_MODEL || 'llama-3.2-11b-vision-preview',
+    baseUrl: process.env.SECONDARY_AI_BASE_URL || 'https://api.groq.com/openai/v1'
   },
   openFoodFacts: {
     baseUrl: process.env.OPENFOODFACTS_BASE_URL || 'https://world.openfoodfacts.org/api/v2'

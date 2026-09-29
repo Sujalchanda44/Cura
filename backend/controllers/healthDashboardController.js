@@ -8,6 +8,8 @@ const HealthMetric = require('../models/HealthMetric');
 const NutritionLog = require('../models/NutritionLog');
 const HealthScoreService = require('../services/healthScoreService');
 const ResponseHandler = require('../utils/responseHandler');
+const { HTTP_STATUS } = require('../config/constants');
+const { getRequestDate } = require('../utils/dateHelper');
 
 class HealthDashboardController {
   /**
@@ -17,7 +19,7 @@ class HealthDashboardController {
   static async getDashboard(req, res, next) {
     try {
       const userId = req.user.id;
-      const today = req.query.date || new Date().toISOString().split('T')[0];
+      const today = getRequestDate(req);
 
       const [profile, metrics, nutritionTotals, recentMeals] = await Promise.all([
         HealthProfile.findByUserId(userId),
@@ -37,24 +39,26 @@ class HealthDashboardController {
 
       const healthScoreData = HealthScoreService.calculateDailyScore(profile, nutritionTotals, metrics);
 
-      // Fetch 7-day trend data for frontend charts
-      const now = new Date();
-      const past7 = new Date();
-      past7.setDate(now.getDate() - 6);
-      const startStr = past7.toISOString().split('T')[0];
-      const endStr = now.toISOString().split('T')[0];
+      // Fetch 7-day trend data for frontend charts based on today's calendar date
+      const [year, month, day] = today.split('-').map(Number);
+      const chartDates = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(year, month - 1, day - i);
+        const yStr = d.getFullYear();
+        const mStr = String(d.getMonth() + 1).padStart(2, '0');
+        const dStr = String(d.getDate()).padStart(2, '0');
+        chartDates.push({ dateKey: `${yStr}-${mStr}-${dStr}`, d });
+      }
+
+      const startStr = chartDates[0].dateKey;
+      const endStr = chartDates[chartDates.length - 1].dateKey;
 
       const [metricsList, nutritionList] = await Promise.all([
         HealthMetric.getRange(userId, startStr, endStr),
         NutritionLog.findByUserDateRange(userId, startStr, endStr)
       ]);
 
-      const chartHistory = [];
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(past7);
-        d.setDate(past7.getDate() + i);
-        const dateKey = d.toISOString().split('T')[0];
-
+      const chartHistory = chartDates.map(({ dateKey, d }) => {
         const dayMetrics = metricsList.find(m => m.date === dateKey) || {
           steps: 0,
           waterMl: 0,
@@ -65,7 +69,7 @@ class HealthDashboardController {
         const dayNutrition = nutritionList.filter(n => n.date === dateKey);
         const dayCals = dayNutrition.reduce((sum, n) => sum + (n.calories || 0), 0);
 
-        chartHistory.push({
+        return {
           date: dateKey,
           day: d.toLocaleDateString('en-US', { weekday: 'short' }),
           waterIntake: dayMetrics.waterMl || dayMetrics.waterIntake || 0,
@@ -74,11 +78,18 @@ class HealthDashboardController {
           caloriesConsumed: dayCals,
           exerciseDuration: dayMetrics.workoutMinutes || dayMetrics.exerciseDuration || 0,
           steps: dayMetrics.steps || 0
-        });
-      }
+        };
+      });
+
+      const isDailyLogSubmitted = Boolean(
+        metrics.isDailyLogSubmitted ||
+        (metrics.steps > 0 && (metrics.activeCaloriesBurnt > 0 || metrics.exerciseDuration > 0))
+      );
 
       return ResponseHandler.success(res, 'Health dashboard data retrieved successfully', {
         date: today,
+        isDailyLogSubmitted,
+        hasLoggedToday: isDailyLogSubmitted,
         user: {
           name: req.user.name,
           email: req.user.email
@@ -160,9 +171,28 @@ class HealthDashboardController {
   static async logDaily(req, res, next) {
     try {
       const userId = req.user.id;
-      const today = req.body.date || new Date().toISOString().split('T')[0];
+      const today = getRequestDate(req);
 
-      const logged = await HealthMetric.logDailyMetric(userId, today, req.body);
+      // Enforce 1 daily log per day rule
+      const existing = await HealthMetric.getByDate(userId, today);
+      const isAlreadySubmitted = existing && (
+        existing.isDailyLogSubmitted ||
+        (existing.steps > 0 && (existing.activeCaloriesBurnt > 0 || existing.workoutMinutes > 0))
+      );
+
+      if (isAlreadySubmitted) {
+        return ResponseHandler.error(
+          res,
+          'You have already submitted your health log for today. Only one daily log is permitted per day.',
+          HTTP_STATUS.CONFLICT
+        );
+      }
+
+      const logged = await HealthMetric.logDailyMetric(userId, today, {
+        ...req.body,
+        isDailyLogSubmitted: true,
+        dailyLogSubmittedAt: new Date().toISOString()
+      });
       return ResponseHandler.success(res, 'Daily health metric logged successfully', logged);
     } catch (error) {
       next(error);

@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { sendChatMessage } from '@/api/chatApi';
 import { useAuth } from '@/hooks/useAuth';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 type Message = {
   id: string;
@@ -173,12 +174,16 @@ export default function AIAssistant() {
                 
                 <div className={cn("flex flex-col space-y-2", msg.sender === 'user' ? "items-end" : "items-start")}>
                   <div className={cn(
-                    "px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm whitespace-pre-wrap break-words text-left inline-block",
+                    "px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm break-words text-left inline-block",
                     msg.sender === 'user' 
-                      ? "bg-[#134E2F] text-white rounded-br-sm shadow-[#134E2F]/10" 
+                      ? "bg-[#134E2F] text-white rounded-br-sm shadow-[#134E2F]/10 whitespace-pre-wrap" 
                       : "bg-white dark:bg-[#1C2318] border border-slate-200 dark:border-[#273322] text-slate-800 dark:text-slate-100 rounded-bl-sm"
                   )}>
-                    {msg.text}
+                    {msg.sender === 'ai' ? (
+                      <MarkdownRenderer content={msg.text} />
+                    ) : (
+                      msg.text
+                    )}
                   </div>
                   
                   {msg.type === 'nutrition_card' && msg.data && (

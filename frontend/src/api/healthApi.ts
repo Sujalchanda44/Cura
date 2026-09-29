@@ -1,17 +1,21 @@
 import { apiClient } from './apiClient';
+import { getLocalDateString } from '@/lib/utils';
 
-export const getDashboardData = async () => {
-  const response = await apiClient.get('/dashboard/summary');
+export const getDashboardData = async (date?: string) => {
+  const targetDate = date || getLocalDateString();
+  const response = await apiClient.get('/dashboard/summary', { params: { date: targetDate } });
   return response.data?.data;
 };
 
-export const getHealthDashboard = async () => {
-  const response = await apiClient.get('/health/dashboard');
+export const getHealthDashboard = async (date?: string) => {
+  const targetDate = date || getLocalDateString();
+  const response = await apiClient.get('/health/dashboard', { params: { date: targetDate } });
   return response.data?.data;
 };
 
-export const getHealthScore = async () => {
-  const response = await apiClient.get('/dashboard/health-score');
+export const getHealthScore = async (date?: string) => {
+  const targetDate = date || getLocalDateString();
+  const response = await apiClient.get('/dashboard/health-score', { params: { date: targetDate } });
   return response.data?.data;
 };
 
@@ -31,7 +35,11 @@ export const saveOnboarding = async (data: any) => {
 };
 
 export const logDailyMetric = async (data: any) => {
-  const response = await apiClient.post('/health/daily-log', data);
+  const payload = {
+    ...data,
+    date: data?.date || getLocalDateString()
+  };
+  const response = await apiClient.post('/health/daily-log', payload);
   return response.data?.data;
 };
 
