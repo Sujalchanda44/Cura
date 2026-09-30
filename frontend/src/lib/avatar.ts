@@ -3,8 +3,11 @@
  * Handles URL resolution and cross-device image optimization (mobile & desktop)
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
-const BACKEND_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+const getBackendOrigin = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+  return envUrl.trim().replace(/\/api\/?$/, '').replace(/\/+$/, '');
+};
+const BACKEND_ORIGIN = getBackendOrigin();
 
 /**
  * Returns a fully qualified image URL for an avatar, handling relative /uploads paths,

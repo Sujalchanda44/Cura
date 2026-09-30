@@ -1,7 +1,17 @@
 import axios from 'axios';
 import { supabase } from './supabase';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+// Safely normalize API base URL ensuring it always ends with '/api' without trailing slashes
+const getApiBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl) {
+    return 'http://localhost:5001/api';
+  }
+  const clean = envUrl.trim().replace(/\/+$/, '');
+  return clean.endsWith('/api') ? clean : `${clean}/api`;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

@@ -14,7 +14,7 @@ async function startServer() {
     await seedDatabase();
 
     // 2. Start HTTP Server
-    const HOST = process.env.HOST || '127.0.0.1';
+    const HOST = process.env.HOST || '0.0.0.0';
     const server = app.listen(config.port, HOST, () => {
       logger.success(`🚀 HealthSync AI Server running on http://${HOST}:${config.port} [${config.env}]`);
       logger.info(`📡 API Base URL: http://${HOST}:${config.port}/api`);
