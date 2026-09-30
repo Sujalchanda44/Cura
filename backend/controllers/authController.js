@@ -19,8 +19,17 @@ class AuthController {
     try {
       const { name, email, password, role, settings } = req.body;
 
+      if (!email || typeof email !== 'string') {
+        return ResponseHandler.error(res, 'Valid email is required.', HTTP_STATUS.BAD_REQUEST);
+      }
+      const cleanEmail = email.toLowerCase().trim();
+      const emailRegex = /^[a-zA-Z0-9]+([._%+-][a-zA-Z0-9]+)*@[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(cleanEmail) || cleanEmail.includes('..') || cleanEmail.endsWith('.')) {
+        return ResponseHandler.error(res, 'Please provide a valid email format (e.g. user@example.com).', HTTP_STATUS.BAD_REQUEST);
+      }
+
       // Check if user already exists
-      const existingUser = await User.findByEmail(email);
+      const existingUser = await User.findByEmail(cleanEmail);
       if (existingUser) {
         return ResponseHandler.error(
           res,

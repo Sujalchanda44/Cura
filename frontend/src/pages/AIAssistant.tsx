@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Image as ImageIcon, Sparkles, User, HelpCircle, Activity, Camera, Loader2 } from 'lucide-react';
+import { Send, Sparkles, User, HelpCircle, Activity, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { sendChatMessage } from '@/api/chatApi';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/contexts/LanguageContext';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 type Message = {
@@ -15,16 +16,17 @@ type Message = {
   data?: any;
 };
 
-const suggestedInquiries = [
-  { icon: HelpCircle, title: 'Can I eat this?', desc: 'Scan food for nutritional analysis', color: 'text-blue-500', bg: 'bg-blue-50' },
-  { icon: Sparkles, title: 'Is this medicine safe?', desc: 'Check interactions and side effects', color: 'text-purple-500', bg: 'bg-purple-50' },
-  { icon: User, title: 'Daily Health Tips', desc: 'Get personalized wellness advice', color: 'text-green-500', bg: 'bg-green-50' },
-  { icon: Activity, title: 'Analyze my health', desc: 'Review my recent health trends', color: 'text-orange-500', bg: 'bg-orange-50' },
-];
-
 export default function AIAssistant() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const name = user?.name || 'User';
+
+  const suggestedInquiries = [
+    { icon: HelpCircle, title: t('ai.canIEat', 'Can I eat this?'), desc: t('ai.canIEatDesc', 'Scan food for nutritional analysis'), color: 'text-blue-500', bg: 'bg-blue-50' },
+    { icon: Sparkles, title: t('ai.isMedicineSafe', 'Is this medicine safe?'), desc: t('ai.isMedicineSafeDesc', 'Check interactions and side effects'), color: 'text-purple-500', bg: 'bg-purple-50' },
+    { icon: User, title: t('ai.dailyTips', 'Daily Health Tips'), desc: t('ai.dailyTipsDesc', 'Get personalized wellness advice'), color: 'text-green-500', bg: 'bg-green-50' },
+    { icon: Activity, title: t('ai.analyzeHealth', 'Analyze my health'), desc: t('ai.analyzeHealthDesc', 'Review my recent health trends'), color: 'text-orange-500', bg: 'bg-orange-50' },
+  ];
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -101,7 +103,7 @@ export default function AIAssistant() {
       
       {/* Left Sidebar - Suggested Inquiries */}
       <div className="hidden lg:flex flex-col w-80 shrink-0 h-full overflow-y-auto pr-2 pb-4">
-        <h2 className="text-lg font-bold text-slate-900 mb-4 px-1">Suggested Inquiries</h2>
+        <h2 className="text-lg font-bold text-slate-900 mb-4 px-1">{t('ai.suggestedInquiries', 'Suggested Inquiries')}</h2>
         <div className="space-y-3">
           {suggestedInquiries.map((item, i) => (
             <Card 
@@ -125,10 +127,10 @@ export default function AIAssistant() {
         <div className="mt-auto pt-6 px-2">
           <div className="bg-orange-50 border border-orange-100 rounded-lg p-3">
             <h4 className="text-xs font-bold text-orange-800 mb-1 flex items-center">
-              <Activity className="h-3 w-3 mr-1" /> Important Disclaimer
+              <Activity className="h-3 w-3 mr-1" /> {t('ai.disclaimerTitle', 'Important Disclaimer')}
             </h4>
             <p className="text-[10px] text-orange-700 leading-snug">
-              Cura+ AI provides informational wellness guidance and may make mistakes. It is not a substitute for professional medical advice. Please consult a qualified healthcare professional.
+              {t('ai.disclaimer', 'Cura+ AI provides informational wellness guidance and may make mistakes. It is not a substitute for professional medical advice. Please consult a qualified healthcare professional.')}
             </p>
           </div>
         </div>
@@ -146,7 +148,7 @@ export default function AIAssistant() {
               <h2 className="font-bold text-slate-900 dark:text-slate-100 leading-tight">Cura+ AI</h2>
               <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
                 <span className="h-2 w-2 rounded-full bg-success mr-1.5 inline-block"></span>
-                AI Health Assistant • Online
+                {t('ai.statusOnline', 'AI Health Assistant • Online')}
               </div>
             </div>
           </div>
@@ -220,7 +222,7 @@ export default function AIAssistant() {
                 </div>
                 <div className="px-4 py-3 rounded-2xl bg-white dark:bg-[#1C2318] border border-slate-200 dark:border-[#273322] text-slate-500 dark:text-slate-400 text-sm flex items-center space-x-1.5 shadow-sm rounded-bl-sm">
                   <Loader2 className="h-4 w-4 animate-spin text-[#134E2F] dark:text-[#C1F3BA]" />
-                  <span>Cura+ is thinking...</span>
+                  <span>{t('ai.thinking', 'Cura+ is thinking...')}</span>
                 </div>
               </div>
             </div>
@@ -231,15 +233,6 @@ export default function AIAssistant() {
         {/* Chat Input */}
         <div className="p-4 bg-white dark:bg-[#151A12] border-t border-slate-100 dark:border-[#273322] shrink-0 transition-colors">
           <form onSubmit={handleSendMessage} className="flex items-end space-x-2 bg-slate-50 dark:bg-[#1C2318] rounded-2xl border border-slate-200 dark:border-[#273322] p-2 focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary transition-all">
-            <div className="flex items-center space-x-1 pb-1 pl-1 shrink-0">
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary rounded-full">
-                <ImageIcon className="h-5 w-5" />
-              </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary rounded-full">
-                <Camera className="h-5 w-5" />
-              </Button>
-            </div>
-            
             <textarea 
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
@@ -249,15 +242,12 @@ export default function AIAssistant() {
                   handleSendMessage();
                 }
               }}
-              placeholder="Message Cura+ AI..."
+              placeholder={t('ai.inputPlaceholder', 'Message Cura+ AI...')}
               className="flex-1 max-h-32 min-h-[40px] bg-transparent border-0 focus:ring-0 resize-none py-2 px-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none"
               rows={1}
             />
             
-            <div className="flex items-center space-x-1 pb-1 pr-1 shrink-0">
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary rounded-full">
-                <Mic className="h-5 w-5" />
-              </Button>
+            <div className="flex items-center pb-1 pr-1 shrink-0">
               <Button type="submit" disabled={!inputValue.trim() || isTyping} size="icon" className="h-8 w-8 rounded-full bg-[#134E2F] text-white shadow-sm disabled:opacity-50 transition-all hover:scale-105 cursor-pointer">
                 <Send className="h-4 w-4" />
               </Button>

@@ -6,14 +6,16 @@ const memoryDb = require('../database/memoryStore');
 const HealthCalculators = require('../utils/healthCalculators');
 const CryptoHelper = require('../utils/cryptoHelper');
 const { ACTIVITY_LEVELS, HEALTH_GOALS, GENDER } = require('../config/constants');
-const { supabase, isSupabaseConfigured } = require('../services/supabaseService');
+const { supabaseAdmin, supabase, isSupabaseConfigured } = require('../services/supabaseService');
 const logger = require('../utils/logger');
+
+const db = supabaseAdmin || supabase;
 
 class HealthProfile {
   static async findByUserId(userId) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('health_profiles')
           .select('*')
           .eq('userId', userId)
@@ -36,8 +38,9 @@ class HealthProfile {
           return combined;
         }
       } catch (err) {
-        logger.error('Supabase findByUserId error, falling back:', err);
+        logger.error('Supabase findByUserId error:', err);
       }
+      return null;
     }
 
     const profile = await memoryDb.findOne('healthProfiles', { userId });
@@ -53,16 +56,16 @@ class HealthProfile {
 
   static async createOrUpdate(userId, profileData) {
     let existing = null;
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('health_profiles')
           .select('*')
           .eq('userId', userId)
           .maybeSingle();
         if (!error && data) existing = data;
       } catch (err) {
-        logger.error('Supabase findByUserId query error, falling back:', err);
+        logger.error('Supabase findByUserId query error:', err);
       }
     }
     if (!existing) {
@@ -160,9 +163,11 @@ class HealthProfile {
       healthGoal = healthGoal[0] || HEALTH_GOALS.MAINTAIN_WEIGHT;
     }
 
-    const dietaryRestrictions = Array.isArray(profileData.dietaryRestrictions)
+    const dietaryRestrictions = Array.isArray(profileData.dietaryRestrictions) && profileData.dietaryRestrictions.length > 0
       ? profileData.dietaryRestrictions
-      : (typeof profileData.dietaryRestrictions === 'string' ? profileData.dietaryRestrictions.split(',').map(s => s.trim()).filter(Boolean) : existing?.dietaryRestrictions || []);
+      : (typeof profileData.dietaryRestrictions === 'string' && profileData.dietaryRestrictions.trim()
+        ? profileData.dietaryRestrictions.split(',').map(s => s.trim()).filter(Boolean)
+        : (profileData.dietType ? [profileData.dietType] : (existing?.dietaryRestrictions || [dietType])));
 
     const rawMedicalConditions = profileData.medicalConditions !== undefined
       ? (Array.isArray(profileData.medicalConditions) ? profileData.medicalConditions : [profileData.medicalConditions].filter(Boolean))
@@ -227,6 +232,7 @@ class HealthProfile {
         alcohol,
         stressLevel
       },
+      dietType,
       activityLevel,
       healthGoal,
       mainHealthGoal,
@@ -311,36 +317,33 @@ class HealthProfile {
 
         let result;
         if (existing && existing.id) {
-          result = await supabase
+          result = await db
             .from('health_profiles')
             .update(supabasePayload)
             .eq('id', existing.id)
             .select()
             .single();
         } else {
-          result = await supabase
+          result = await db
             .from('health_profiles')
-            .insert([supabasePayload])
+            .upsert([supabasePayload], { onConflict: 'userId' })
             .select()
             .single();
         }
         if (!result.error && result.data) {
-          // Sync memoryDb
-          const mem = await memoryDb.findOne('healthProfiles', { userId });
-          if (mem) {
-            await memoryDb.update('healthProfiles', mem.id, fullRecord);
-          } else {
-            await memoryDb.create('healthProfiles', { ...fullRecord, id: result.data.id });
-          }
           return { ...fullRecord, ...result.data, ...consolidatedSettings.onboardingData, isOnboarded: true };
         }
-        if (result.error) logger.error('Supabase write profile failed, falling back:', result.error);
+        if (result.error) {
+          logger.error('Supabase write profile failed:', result.error);
+          throw result.error;
+        }
       } catch (err) {
-        logger.error('Supabase createOrUpdate error, falling back:', err);
+        logger.error('Supabase createOrUpdate error:', err);
+        throw err;
       }
     }
 
-    // In-memory fallback
+    // In-memory fallback only when Supabase is not configured
     const mem = await memoryDb.findOne('healthProfiles', { userId });
     if (mem) {
       return memoryDb.update('healthProfiles', mem.id, fullRecord);
@@ -358,9 +361,9 @@ class HealthProfile {
       updatedAt: new Date().toISOString()
     };
 
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data: existing } = await supabase
+        const { data: existing } = await db
           .from('health_profiles')
           .select('id, settings')
           .eq('userId', userId)
@@ -371,21 +374,23 @@ class HealthProfile {
             ...(existing.settings || {}),
             onboardingDraft: draftPayload
           };
-          await supabase
+          await db
             .from('health_profiles')
             .update({ settings: updatedSettings, updatedAt: new Date().toISOString() })
             .eq('id', existing.id);
         } else {
-          await supabase
+          await db
             .from('health_profiles')
-            .insert([{
+            .upsert([{
               userId,
               isOnboarded: false,
               settings: { onboardingDraft: draftPayload }
-            }]);
+            }], { onConflict: 'userId' });
         }
+        return draftPayload;
       } catch (err) {
-        logger.error('Supabase saveDraft error, falling back:', err);
+        logger.error('Supabase saveDraft error:', err);
+        return draftPayload;
       }
     }
 
@@ -406,9 +411,9 @@ class HealthProfile {
   }
 
   static async getDraft(userId) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('health_profiles')
           .select('settings, isOnboarded')
           .eq('userId', userId)
@@ -418,8 +423,9 @@ class HealthProfile {
           return data.settings.onboardingDraft;
         }
       } catch (err) {
-        logger.error('Supabase getDraft error, falling back:', err);
+        logger.error('Supabase getDraft error:', err);
       }
+      return null;
     }
 
     const mem = await memoryDb.findOne('healthProfiles', { userId });
@@ -427,19 +433,16 @@ class HealthProfile {
   }
 
   static async deleteByUserId(userId) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { error } = await supabase
+        const { error } = await db
           .from('health_profiles')
           .delete()
           .eq('userId', userId);
-        if (!error) {
-          const existing = await memoryDb.findOne('healthProfiles', { userId });
-          if (existing) await memoryDb.delete('healthProfiles', existing.id);
-          return true;
-        }
+        return !error;
       } catch (err) {
-        logger.error('Supabase deleteByUserId error, falling back:', err);
+        logger.error('Supabase deleteByUserId error:', err);
+        return false;
       }
     }
     const existing = await memoryDb.findOne('healthProfiles', { userId });

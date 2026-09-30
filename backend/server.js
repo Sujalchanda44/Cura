@@ -5,13 +5,16 @@
 const app = require('./app');
 const config = require('./config/env');
 const logger = require('./utils/logger');
-const { seedDatabase } = require('./database/seeds');
 
 async function startServer() {
   try {
-    // 1. Initialize In-Memory Data Store with Seed Data
-    logger.info('Initializing HealthSync AI database store...');
-    await seedDatabase();
+    // 1. Log database connection mode
+    const { isSupabaseConfigured } = require('./services/supabaseService');
+    if (isSupabaseConfigured) {
+      logger.info('Connected to Supabase PostgreSQL database.');
+    } else {
+      logger.warn('Supabase not configured. Using local in-memory store.');
+    }
 
     // 2. Start HTTP Server
     const HOST = process.env.HOST || '0.0.0.0';

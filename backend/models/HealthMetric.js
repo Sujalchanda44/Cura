@@ -3,14 +3,16 @@
  */
 
 const memoryDb = require('../database/memoryStore');
-const { supabase, isSupabaseConfigured } = require('../services/supabaseService');
+const { supabaseAdmin, supabase, isSupabaseConfigured } = require('../services/supabaseService');
 const logger = require('../utils/logger');
+
+const db = supabaseAdmin || supabase;
 
 class HealthMetric {
   static async getByDate(userId, date) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('health_metrics')
           .select('*')
           .eq('userId', userId)
@@ -38,8 +40,27 @@ class HealthMetric {
           };
         }
       } catch (err) {
-        logger.error('Supabase getByDate error, falling back:', err);
+        logger.error('Supabase getByDate error:', err);
       }
+      return {
+        userId,
+        date,
+        isDailyLogSubmitted: false,
+        dailyLogSubmittedAt: null,
+        steps: 0,
+        targetSteps: 8000,
+        waterMl: 0,
+        waterIntake: 0,
+        targetWaterMl: 2500,
+        sleepHours: 0,
+        targetSleepHours: 8,
+        activeCaloriesBurnt: 0,
+        caloriesBurned: 0,
+        exerciseDuration: 0,
+        workoutMinutes: 0,
+        weightKg: null,
+        heartRateAvg: 70
+      };
     }
 
     const record = await memoryDb.findOne('healthMetrics', { userId, date });
@@ -145,36 +166,33 @@ class HealthMetric {
       heartRateAvg: payload.heartRateAvg
     };
 
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
         let result;
         if (existing && existing.id) {
-          result = await supabase
+          result = await db
             .from('health_metrics')
             .update(supabasePayload)
             .eq('id', existing.id)
             .select()
             .single();
         } else {
-          result = await supabase
+          result = await db
             .from('health_metrics')
-            .insert([supabasePayload])
+            .upsert([supabasePayload], { onConflict: '"userId",date' })
             .select()
             .single();
         }
         if (!result.error && result.data) {
-          // Sync memoryDb
-          const mem = await memoryDb.findOne('healthMetrics', { userId, date });
-          if (mem) {
-            await memoryDb.update('healthMetrics', mem.id, result.data);
-          } else {
-            await memoryDb.create('healthMetrics', result.data);
-          }
           return result.data;
         }
-        if (result.error) logger.error('Supabase write metric failed, falling back:', result.error);
+        if (result.error) {
+          logger.error('Supabase write metric failed:', result.error);
+          throw result.error;
+        }
       } catch (err) {
-        logger.error('Supabase logDailyMetric write error, falling back:', err);
+        logger.error('Supabase logDailyMetric write error:', err);
+        throw err;
       }
     }
 
@@ -187,9 +205,9 @@ class HealthMetric {
   }
 
   static async getRange(userId, startDate, endDate) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('health_metrics')
           .select('*')
           .eq('userId', userId)
@@ -205,8 +223,9 @@ class HealthMetric {
           }));
         }
       } catch (err) {
-        logger.error('Supabase getRange error, falling back:', err);
+        logger.error('Supabase getRange error:', err);
       }
+      return [];
     }
 
     const all = await memoryDb.find('healthMetrics', { userId });

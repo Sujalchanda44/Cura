@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Camera, Upload, X, Check, Trash2, Smartphone, 
-  Laptop, Loader2, RefreshCw, AlertCircle, Sparkles
+  Camera, Upload, X, Check, Trash2,
+  Loader2, RefreshCw, AlertCircle, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { uploadAvatar, uploadAvatarBase64, deleteAvatar } from '@/api/userApi';
@@ -29,7 +29,6 @@ export function AvatarUploadModal({
   const [isDragOver, setIsDragOver] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Close on Escape key
   useEffect(() => {
@@ -198,25 +197,14 @@ export function AvatarUploadModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Hidden native inputs for Laptop and Phone */}
-        {/* Standard File Explorer for Laptop & Mobile photo library */}
+        {/* Standard File Explorer for photo library and file browser */}
         <input 
           ref={fileInputRef}
           type="file" 
           accept="image/png,image/jpeg,image/webp,image/gif,image/jpg,image/heic,image/heif"
           onChange={handleFileChange}
           className="hidden"
-          id="laptop-file-upload"
-        />
-
-        {/* Camera capture input specifically for mobile phone camera / selfie */}
-        <input 
-          ref={cameraInputRef}
-          type="file" 
-          accept="image/*"
-          capture="user"
-          onChange={handleFileChange}
-          className="hidden"
-          id="phone-camera-upload"
+          id="avatar-file-upload"
         />
 
         {/* Modal Header */}
@@ -348,60 +336,25 @@ export function AvatarUploadModal({
                 )}
               </div>
 
-              {/* Upload Channels Grid: Laptop File Picker vs Mobile Phone Camera */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* 1. Laptop / File Browser */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-slate-200 hover:border-[#134E2F] hover:bg-[#134E2F]/5 bg-white transition-all text-center group cursor-pointer"
-                >
-                  <div className="h-11 w-11 rounded-xl bg-blue-50 group-hover:bg-[#134E2F]/10 text-blue-600 group-hover:text-[#134E2F] flex items-center justify-center mb-2.5 transition-colors">
-                    <Laptop className="h-5 w-5" />
-                  </div>
-                  <span className="text-sm font-semibold text-slate-900 group-hover:text-[#134E2F]">
-                    Laptop / Storage
-                  </span>
-                  <span className="text-[11px] text-slate-500 mt-0.5">
-                    Browse files & folders
-                  </span>
-                </button>
-
-                {/* 2. Mobile Phone Camera */}
-                <button
-                  type="button"
-                  onClick={() => cameraInputRef.current?.click()}
-                  className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-slate-200 hover:border-[#134E2F] hover:bg-[#134E2F]/5 bg-white transition-all text-center group cursor-pointer"
-                >
-                  <div className="h-11 w-11 rounded-xl bg-emerald-50 group-hover:bg-[#134E2F]/10 text-emerald-600 group-hover:text-[#134E2F] flex items-center justify-center mb-2.5 transition-colors">
-                    <Smartphone className="h-5 w-5" />
-                  </div>
-                  <span className="text-sm font-semibold text-slate-900 group-hover:text-[#134E2F]">
-                    Phone Camera
-                  </span>
-                  <span className="text-[11px] text-slate-500 mt-0.5">
-                    Snap a selfie or photo
-                  </span>
-                </button>
-              </div>
-
-              {/* Drag and Drop Zone (Laptop Friendly) */}
+              {/* Upload Dropzone */}
               <div
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onClick={() => fileInputRef.current?.click()}
-                className={`flex flex-col items-center justify-center p-5 rounded-xl border-2 border-dashed transition-all cursor-pointer text-center ${
+                className={`flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center group ${
                   isDragOver 
                     ? 'border-emerald-500 bg-emerald-50/50 scale-[0.99]' 
-                    : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 hover:bg-slate-50'
+                    : 'border-slate-200 hover:border-[#134E2F] bg-slate-50/50 hover:bg-[#134E2F]/5'
                 }`}
               >
-                <Upload className={`h-6 w-6 mb-2 ${isDragOver ? 'text-emerald-600 animate-bounce' : 'text-slate-400'}`} />
-                <p className="text-xs font-semibold text-slate-700">
-                  {isDragOver ? 'Drop image here' : 'Or drag & drop photo here'}
+                <div className="h-12 w-12 rounded-2xl bg-emerald-100/60 dark:bg-emerald-950/60 flex items-center justify-center mb-3 group-hover:scale-105 transition-all text-[#134E2F]">
+                  <Upload className={`h-6 w-6 ${isDragOver ? 'text-emerald-600 animate-bounce' : 'text-[#134E2F]'}`} />
+                </div>
+                <p className="text-sm font-bold text-slate-800 mb-1">
+                  {isDragOver ? 'Drop image here' : 'Click to browse or drag & drop photo here'}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-400">
                   Supports PNG, JPG, WEBP, HEIC up to 15MB
                 </p>
               </div>

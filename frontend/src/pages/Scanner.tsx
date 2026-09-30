@@ -20,10 +20,10 @@ import {
   ListFilter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import { scanFood, ScanResult } from '@/api/scannerApi';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { scanFood, logScannedMeal, ScanResult } from '@/api/scannerApi';
 import { apiClient } from '@/api/apiClient';
 
 interface GaugeProps {
@@ -118,7 +118,7 @@ function FoodHealthScoreGauge({ score }: GaugeProps) {
         {/* Big Prominent Score in the center */}
         <div className="absolute inset-0 flex flex-col items-center justify-end pb-1 pointer-events-none">
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
-            Food Health Score
+
           </span>
           <div className="flex items-baseline justify-center gap-1">
             <span className={cn('text-5xl sm:text-6xl font-black tracking-tight leading-none', currentZone.textColor)}>
@@ -165,6 +165,7 @@ function FoodHealthScoreGauge({ score }: GaugeProps) {
 export default function Scanner() {
   const navigate = useNavigate();
   const { healthProfile } = useAuth();
+  const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Modes: 'upload' | 'analyzing' | 'result'
@@ -190,6 +191,11 @@ export default function Scanner() {
   // Log to diary state
   const [isLogging, setIsLogging] = useState(false);
   const [isLogged, setIsLogged] = useState(false);
+  const [scoreUpdateToast, setScoreUpdateToast] = useState<{
+    message: string;
+    newScore?: number;
+    impactDirection: 'increase' | 'decrease' | 'neutral';
+  } | null>(null);
 
   // Cycle loading messages during analysis
   useEffect(() => {
@@ -357,7 +363,7 @@ export default function Scanner() {
             lastScannedAt: new Date().toISOString()
           };
           localStorage.setItem('cura_scan_stats', JSON.stringify(updatedStats));
-        } catch (_) {}
+        } catch (_) { }
       } else {
         setError('Failed to analyze food image. Please try again.');
         setMode('upload');
@@ -426,25 +432,67 @@ export default function Scanner() {
     setScanResult(null);
     setError(null);
     setIsLogged(false);
+    setScoreUpdateToast(null);
     setExpandedSection('none');
     setMode('upload');
   };
 
-  // Log to Diary
+  // Log to Diary and recalculate Dashboard Health Score
   const handleLogToDiary = async () => {
     if (!scanResult) return;
     setIsLogging(true);
     try {
-      await apiClient.post('/scanner/analyze', {
+      const res = await logScannedMeal({
+        name: scanResult.foodName,
+        calories: scanResult.nutrition?.calories || 0,
+        protein: scanResult.nutrition?.protein || 0,
+        carbs: scanResult.nutrition?.carbohydrates || 0,
+        fat: scanResult.nutrition?.fat || 0,
+        fiber: 4,
+        ingredients: scanResult.detectedIngredients || scanResult.ingredients || [],
         barcode: scanResult.barcode || undefined,
-        textHint: scanResult.foodName,
-        autoLog: true,
+        imageUrl: scanResult.imageUrl || undefined,
         mealType: 'lunch'
       });
+
       setIsLogged(true);
+
+      const foodScore = normalized?.healthScore || 70;
+      const isHarmfulOrCaution = foodScore < 70;
+      const newScore = res?.healthScore?.score;
+
+      setScoreUpdateToast({
+        message: newScore !== undefined
+          ? isHarmfulOrCaution
+            ? `Logged to Diary • 📉 Dashboard Health Score adjusted to ${newScore}/100 based on low food rating.`
+            : `Logged to Diary • 📈 Dashboard Health Score increased to ${newScore}/100!`
+          : isHarmfulOrCaution
+            ? 'Logged to Diary • 📉 Your Dashboard Health Score decreased due to food rating.'
+            : 'Logged to Diary • 📈 Your Dashboard Health Score increased!',
+        newScore,
+        impactDirection: isHarmfulOrCaution ? 'decrease' : 'increase'
+      });
     } catch (err) {
-      console.warn('Auto log notice:', err);
+      console.warn('Log to diary fallback:', err);
+      // Fallback autoLog
+      try {
+        await apiClient.post('/scanner/analyze', {
+          barcode: scanResult.barcode || undefined,
+          textHint: scanResult.foodName,
+          autoLog: true,
+          mealType: 'lunch'
+        });
+      } catch (e) {
+        // ignore
+      }
       setIsLogged(true);
+      const isHarmfulOrCaution = (normalized?.healthScore || 70) < 70;
+      setScoreUpdateToast({
+        message: isHarmfulOrCaution
+          ? 'Logged to Diary • 📉 Dashboard Health Score lowered.'
+          : 'Logged to Diary • 📈 Dashboard Health Score increased!',
+        impactDirection: isHarmfulOrCaution ? 'decrease' : 'increase'
+      });
     } finally {
       setIsLogging(false);
     }
@@ -460,10 +508,10 @@ export default function Scanner() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-            Food & Nutrition Scanner
+            {t('scanner.title', 'Food Health Scanner')}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base mt-1">
-            Personalized AI vision scanner cross-referencing your medical profile, allergies, and nutrition in real-time.
+            {t('scanner.subtitle', 'Instant clinical AI ingredient safety & allergen detection.')}
           </p>
         </div>
 
@@ -475,7 +523,7 @@ export default function Scanner() {
             className="rounded-xl border-slate-200 dark:border-slate-800 text-xs font-semibold gap-1.5 shrink-0"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Scan Another Meal</span>
+            <span>{t('scanner.scanAnother', 'Scan Another Meal')}</span>
           </Button>
         )}
       </div>
@@ -488,19 +536,19 @@ export default function Scanner() {
           </div>
           <div>
             <span className="font-bold text-emerald-900 dark:text-emerald-200 block sm:inline mr-2">
-              Active Health Profile:
+              {t('dash.healthProfile', 'Health Profile')}:
             </span>
             <span>
               {userAllergies.length > 0 ? (
                 <span className="font-semibold text-rose-700 dark:text-rose-400 mr-2">
-                  Allergies: [{userAllergies.join(', ')}]
+                  {t('dash.allergies', 'Allergies')}: [{userAllergies.join(', ')}]
                 </span>
               ) : (
                 <span className="text-slate-500 mr-2">No registered allergies</span>
               )}
               {userConditions.length > 0 && (
                 <span className="font-semibold text-amber-700 dark:text-amber-400 mr-2">
-                  • Conditions: [{userConditions.join(', ')}]
+                  • {t('dash.conditions', 'Conditions')}: [{userConditions.join(', ')}]
                 </span>
               )}
               {userDiet && (
@@ -517,7 +565,7 @@ export default function Scanner() {
           onClick={() => navigate('/onboarding')}
           className="text-emerald-700 dark:text-emerald-400 font-semibold hover:underline flex items-center gap-1 shrink-0 self-start sm:self-auto"
         >
-          <span>Update Profile</span>
+          <span>{t('dash.edit', 'Edit')}</span>
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -552,18 +600,18 @@ export default function Scanner() {
             </div>
 
             <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2 text-center">
-              Upload Food Photo
+              {t('scanner.uploadFoodPhoto', 'Upload Food Photo')}
             </h3>
 
             <p className="text-slate-500 dark:text-slate-400 text-center text-sm mb-6 max-w-sm">
-              Drag and drop your food photo here or browse to scan. AI will immediately analyze all ingredients and check if any are harmful for your health.
+              {t('scanner.dragDropPrompt', 'Drag and drop your food photo here or browse to scan. AI will immediately analyze all ingredients and check if any are harmful for your health.')}
             </p>
 
             <Button
               type="button"
               className="rounded-2xl bg-[#134E2F] hover:bg-[#18603B] text-white px-8 py-6 text-base font-semibold shadow-md shadow-[#134E2F]/20 cursor-pointer pointer-events-none"
             >
-              Choose Food Photo
+              {t('scanner.chooseFoodPhoto', 'Choose Food Photo')}
             </Button>
 
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-4">
@@ -577,23 +625,6 @@ export default function Scanner() {
               accept="image/jpeg,image/png,image/webp"
               className="hidden"
             />
-          </div>
-
-          {/* Optional Dish Name / Restaurant Hint */}
-          <div className="bg-white dark:bg-[#151A12] border border-slate-200/80 dark:border-[#273322] rounded-2xl p-4 shadow-2xs">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-              Add Food Details or Dish Name (Optional)
-            </label>
-            <Input
-              type="text"
-              value={textHint}
-              onChange={e => setTextHint(e.target.value)}
-              placeholder="e.g. Paneer Butter Masala, Sourdough bread, Restaurant dal..."
-              className="h-11 rounded-xl text-sm bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"
-            />
-            <p className="text-[11px] text-slate-400 mt-1">
-              Provides extra context if ingredients are blended or from a specific dish.
-            </p>
           </div>
         </div>
       )}
@@ -612,7 +643,7 @@ export default function Scanner() {
                 className="w-full h-full object-cover max-h-72"
               />
             )}
-            
+
             {/* Animated Laser Scanning Beam */}
             <div className="absolute inset-x-0 h-12 bg-gradient-to-b from-transparent via-emerald-400/40 to-transparent border-b-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.7)] animate-scan-beam pointer-events-none" />
 
@@ -705,19 +736,53 @@ export default function Scanner() {
             <FoodHealthScoreGauge score={normalized.healthScore} />
 
             {/* Simple Verdict directly below score */}
-            <div className="pt-2">
+            <div className="pt-2 flex flex-col items-center gap-2">
               <div
                 className={cn(
                   'inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm sm:text-base font-extrabold border shadow-2xs transition-all',
                   normalized.status === 'harmful'
                     ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900'
                     : normalized.status === 'caution'
-                    ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900'
-                    : 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900'
                 )}
               >
                 <span>{normalized.status === 'harmful' ? '⚠️' : normalized.status === 'caution' ? '🟡' : '✅'}</span>
                 <span>{normalized.shortVerdict}</span>
+              </div>
+
+              {/* Dynamic Dashboard Health Score Impact Indicator */}
+              <div className="flex flex-col items-center gap-1 mt-1">
+                <div
+                  className={cn(
+                    'inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold border transition-all shadow-2xs',
+                    normalized.healthScore < 40
+                      ? 'bg-rose-100/90 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-800'
+                      : normalized.healthScore < 70
+                        ? 'bg-amber-100/90 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800'
+                        : normalized.healthScore < 85
+                          ? 'bg-emerald-100/90 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800'
+                          : 'bg-emerald-200/90 text-emerald-900 border-emerald-400 dark:bg-emerald-900/60 dark:text-emerald-100 dark:border-emerald-700'
+                  )}
+                >
+                  <span className="text-sm">
+                    {normalized.healthScore < 70 ? '📉' : '📈'}
+                  </span>
+                  <span>
+                    {normalized.healthScore < 40
+                      ? 'Severe Impact • Lowers Dashboard Score (-15 to -25 pts)'
+                      : normalized.healthScore < 70
+                        ? 'Caution • Lowers Dashboard Score (-4 to -8 pts)'
+                        : normalized.healthScore < 85
+                          ? 'Healthy Choice • Raises Dashboard Score (+3 to +6 pts)'
+                          : 'Superfood • Boosts Dashboard Score (+7 to +12 pts)'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                  {normalized.healthScore < 70
+                    ? 'Eating low-rated foods will decrease your daily Health Score on the Dashboard.'
+                    : 'Eating suitable, allergy-safe foods will increase your daily Health Score on the Dashboard.'}
+                </p>
               </div>
             </div>
 
@@ -994,8 +1059,8 @@ export default function Scanner() {
                           chk.status === 'conflict'
                             ? 'bg-rose-50/60 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200'
                             : chk.status === 'caution'
-                            ? 'bg-amber-50/60 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200'
-                            : 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900 text-emerald-900 dark:text-emerald-200'
+                              ? 'bg-amber-50/60 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200'
+                              : 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900 text-emerald-900 dark:text-emerald-200'
                         )}
                       >
                         <span>{chk.label}</span>
@@ -1164,6 +1229,38 @@ export default function Scanner() {
               Cura+ Food Health Score is an assistive clinical safety guide based on your registered profile. AI cannot guarantee zero cross-contamination. Always verify manufacturer labels for packaged foods.
             </p>
           </div>
+
+          {/* Dynamic Score Update Banner when Logged */}
+          {scoreUpdateToast && (
+            <div className={cn(
+              "p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-300",
+              scoreUpdateToast.impactDirection === 'decrease'
+                ? "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-200"
+                : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200"
+            )}>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{scoreUpdateToast.impactDirection === 'decrease' ? '📉' : '📈'}</span>
+                <div>
+                  <div className="text-sm font-extrabold">{scoreUpdateToast.message}</div>
+                  <div className="text-xs opacity-80 mt-0.5">
+                    Your daily dashboard metrics have been updated to reflect this meal's nutritional quality.
+                  </div>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => navigate('/dashboard')}
+                className={cn(
+                  "shrink-0 rounded-xl font-bold text-xs h-9 px-4",
+                  scoreUpdateToast.impactDirection === 'decrease'
+                    ? "bg-amber-800 hover:bg-amber-900 text-white"
+                    : "bg-emerald-800 hover:bg-emerald-900 text-white"
+                )}
+              >
+                View on Dashboard
+              </Button>
+            </div>
+          )}
 
           {/* Bottom Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">

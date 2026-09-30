@@ -2,26 +2,31 @@
  * User Model & Data Access Layer
  */
 
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const memoryDb = require('../database/memoryStore');
 const { ROLES } = require('../config/constants');
 const config = require('../config/env');
-const { supabase, isSupabaseConfigured } = require('../services/supabaseService');
+const { supabaseAdmin, supabase, isSupabaseConfigured } = require('../services/supabaseService');
 const logger = require('../utils/logger');
+
+const db = supabaseAdmin || supabase;
 
 class User {
   static async findById(id) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('users')
           .select('*')
           .eq('id', id)
           .maybeSingle();
         if (!error) return data || null;
+        logger.error('Supabase findById error:', error);
       } catch (err) {
-        logger.error('Supabase findById error, falling back:', err);
+        logger.error('Supabase findById exception:', err);
       }
+      return null;
     }
     return memoryDb.findById('users', id);
   }
@@ -29,43 +34,46 @@ class User {
   static async findByEmail(email) {
     if (!email) return null;
     const cleanEmail = email.toLowerCase().trim();
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('users')
           .select('*')
           .eq('email', cleanEmail)
           .maybeSingle();
         if (!error) return data || null;
+        logger.error('Supabase findByEmail error:', error);
       } catch (err) {
-        logger.error('Supabase findByEmail error, falling back:', err);
+        logger.error('Supabase findByEmail exception:', err);
       }
+      return null;
     }
     return memoryDb.findOne('users', { email: cleanEmail });
   }
 
   static async findByGoogleId(googleId) {
     if (!googleId) return null;
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('users')
           .select('*')
           .eq('googleId', googleId)
           .maybeSingle();
         if (!error && data) return data;
       } catch (err) {
-        logger.error('Supabase findByGoogleId error, falling back:', err);
+        logger.error('Supabase findByGoogleId error:', err);
       }
+      return null;
     }
     return memoryDb.findOne('users', { googleId });
   }
 
   static async findByResetToken(token) {
     if (!token) return null;
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('users')
           .select('*')
           .eq('resetPasswordToken', token)
@@ -77,8 +85,9 @@ class User {
           return data;
         }
       } catch (err) {
-        logger.error('Supabase findByResetToken error, falling back:', err);
+        logger.error('Supabase findByResetToken error:', err);
       }
+      return null;
     }
     const user = await memoryDb.findOne('users', { resetPasswordToken: token });
     if (!user) return null;
@@ -103,10 +112,41 @@ class User {
       hashedPassword = await bcrypt.hash(password, config.security.saltRounds);
     }
 
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanName = (name || 'User').trim();
+
+    let authUserId = id;
+
+    // 1. When Supabase is configured and we don't have an auth user ID yet,
+    // ensure the user is registered in Supabase Auth (auth.users) so they appear in Supabase dashboard
+    if (isSupabaseConfigured && supabaseAdmin && !authUserId) {
+      try {
+        const { data: authCreated, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+          email: cleanEmail,
+          password: password || 'TempPass@2026',
+          email_confirm: true,
+          user_metadata: {
+            name: cleanName,
+            full_name: cleanName,
+            role
+          }
+        });
+        if (authCreated?.user?.id) {
+          authUserId = authCreated.user.id;
+        } else if (authErr) {
+          logger.warn('Supabase Admin createUser note:', authErr.message);
+        }
+      } catch (err) {
+        logger.warn('Supabase Admin createUser exception:', err.message);
+      }
+    }
+
+    const finalId = authUserId || crypto.randomUUID();
+
     const payload = {
-      id: id || memoryDb.generateId(),
-      name: (name || 'User').trim(),
-      email: email.toLowerCase().trim(),
+      id: finalId,
+      name: cleanName,
+      email: cleanEmail,
       password: hashedPassword,
       role,
       avatarUrl,
@@ -121,25 +161,24 @@ class User {
     };
 
     let createdUser = null;
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('users')
-          .insert([payload])
+          .upsert([payload], { onConflict: 'id' })
           .select()
           .single();
         if (!error && data) {
-          // Sync with local memoryDb
-          await memoryDb.create('users', data);
           createdUser = data;
+        } else if (error) {
+          logger.error('Supabase user create error:', error);
+          throw error;
         }
-        if (error) logger.error('Supabase user create error:', error);
       } catch (err) {
-        logger.error('Supabase create error, falling back:', err);
+        logger.error('Supabase create exception:', err);
+        throw err;
       }
-    }
-
-    if (!createdUser) {
+    } else {
       createdUser = await memoryDb.create('users', payload);
     }
 
@@ -163,7 +202,7 @@ class User {
       sanitized.email = sanitized.email.toLowerCase().trim();
     }
 
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
         const allowedSupabaseColumns = [
           'id', 'name', 'email', 'password', 'role', 
@@ -177,38 +216,37 @@ class User {
           }
         });
 
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('users')
           .update(supabasePayload)
           .eq('id', id)
           .select()
           .single();
         if (!error && data) {
-          // Sync with local memoryDb
-          await memoryDb.update('users', id, sanitized);
           return { ...sanitized, ...data };
         }
-        if (error) logger.error('Supabase user update failed, falling back:', error);
+        if (error) logger.error('Supabase user update failed:', error);
       } catch (err) {
-        logger.error('Supabase update error, falling back:', err);
+        logger.error('Supabase update error:', err);
       }
+      return null;
     }
     return memoryDb.update('users', id, sanitized);
   }
 
   static async delete(id) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        // Cascade delete profile in Supabase
-        await supabase.from('health_profiles').delete().eq('userId', id);
-        const { error } = await supabase.from('users').delete().eq('id', id);
-        if (!error) {
-          const profile = await memoryDb.findOne('healthProfiles', { userId: id });
-          if (profile) await memoryDb.delete('healthProfiles', profile.id);
-          return memoryDb.delete('users', id);
+        // Cascade delete in Supabase
+        await db.from('health_profiles').delete().eq('userId', id);
+        const { error } = await db.from('users').delete().eq('id', id);
+        if (supabaseAdmin) {
+          await supabaseAdmin.auth.admin.deleteUser(id).catch(() => {});
         }
+        return !error;
       } catch (err) {
-        logger.error('Supabase delete error, falling back:', err);
+        logger.error('Supabase delete error:', err);
+        return false;
       }
     }
     const profile = await memoryDb.findOne('healthProfiles', { userId: id });
@@ -222,9 +260,9 @@ class User {
   }
 
   static async getAll(page = 1, limit = 10, search = '') {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        let query = supabase.from('users').select('*', { count: 'exact' });
+        let query = db.from('users').select('*', { count: 'exact' });
         if (search) {
           query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
         }
@@ -241,8 +279,9 @@ class User {
           };
         }
       } catch (err) {
-        logger.error('Supabase getAll error, falling back:', err);
+        logger.error('Supabase getAll error:', err);
       }
+      return { users: [], total: 0 };
     }
 
     let allUsers = await memoryDb.find('users');

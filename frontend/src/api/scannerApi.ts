@@ -75,6 +75,18 @@ export interface ScanResult {
   allergyConflict?: boolean;
   allergyName?: string | null;
   detailedAnalysis?: string;
+  dashboardImpact?: {
+    direction: 'increase' | 'decrease' | 'neutral';
+    points: string;
+    label: string;
+  };
+  updatedDashboardScore?: {
+    score: number;
+    status: string;
+    grade: string;
+    dietImpact?: any;
+    insights?: string;
+  };
 }
 
 export const scanFood = async (imageFile: File | Blob, textHint?: string, autoLog?: boolean): Promise<ScanResult> => {
@@ -99,7 +111,24 @@ export const scanBarcode = async (barcode: string, autoLog?: boolean): Promise<S
   return response.data?.data;
 };
 
+export const logScannedMeal = async (mealData: {
+  name: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fiber?: number;
+  ingredients?: string[];
+  barcode?: string;
+  imageUrl?: string | null;
+  mealType?: string;
+}) => {
+  const response = await apiClient.post('/food/log-meal', mealData);
+  return response.data?.data;
+};
+
 export const getProductDetails = async (barcode: string) => {
   const response = await apiClient.get(`/food/product/${barcode}`);
   return response.data?.data;
 };
+

@@ -251,10 +251,10 @@ export default function Dashboard() {
   const exerciseMinutes = dashboardData?.metrics?.exerciseDuration?.current ?? 0;
   const nutritionCalories = dashboardData?.nutritionTotals?.calories ?? 0;
 
-  // Determine if metrics have been recorded today (1 submission per day rule)
+  // Determine if metrics have been recorded today (1 submission per day rule or meals logged)
   const hasLoggedToday = Boolean(
     dashboardData?.isDailyLogSubmitted ??
-    (stepsCurrent > 0 || waterCurrent > 0 || sleepHours > 0 || exerciseMinutes > 0 || caloriesBurned > 0)
+    (stepsCurrent > 0 || waterCurrent > 0 || sleepHours > 0 || exerciseMinutes > 0 || caloriesBurned > 0 || (dashboardData?.recentMeals && dashboardData.recentMeals.length > 0) || nutritionCalories > 0)
   );
 
   // Health Score
@@ -280,6 +280,45 @@ export default function Dashboard() {
   // -------------------------------------------------------------
   const chartHistory = dashboardData?.chartHistory || [];
 
+  const getDayLabel = (d: string) => {
+    const map: Record<string, string> = {
+      Mon: t('day.mon', 'Mon'),
+      Tue: t('day.tue', 'Tue'),
+      Wed: t('day.wed', 'Wed'),
+      Thu: t('day.thu', 'Thu'),
+      Fri: t('day.fri', 'Fri'),
+      Sat: t('day.sat', 'Sat'),
+      Sun: t('day.sun', 'Sun'),
+    };
+    return map[d] || d;
+  };
+
+  const getMetricLabel = () => {
+    switch (chartMetric) {
+      case 'steps': return t('dash.steps', 'Steps');
+      case 'sleepHours': return `${t('dash.sleep', 'Sleep')} (${t('dash.sleepHours', 'Hours')})`;
+      case 'waterIntake': return `${t('dash.water', 'Water')} (L)`;
+      case 'caloriesBurned': return `${t('dash.burn', 'Burn')} (kcal)`;
+      case 'heartRate': return `${t('dash.heart', 'Heart')} (BPM)`;
+    }
+  };
+
+  const getBmiCategoryLabel = (cat: string | null) => {
+    if (!cat) return null;
+    const lower = cat.toLowerCase();
+    if (lower.includes('normal')) return t('dash.normalWeight', 'Normal weight');
+    if (lower.includes('under')) return t('dash.underweight', 'Underweight');
+    if (lower.includes('over')) return t('dash.overweight', 'Overweight');
+    return cat;
+  };
+
+  const getScoreStatusLabel = (status: string) => {
+    if (status === 'Pending Log') return t('dash.pendingLog', 'Pending Log');
+    if (status === 'Good' || status === 'Optimal') return t('dash.optimal', status);
+    if (status === 'Active') return t('dash.active', 'Active');
+    return status;
+  };
+
   // Format Recharts data based on active metric (7 items, instant inline calculation)
   const chartData = chartHistory.map((day: any) => {
     let val = 0;
@@ -290,21 +329,11 @@ export default function Dashboard() {
     else if (chartMetric === 'heartRate') val = heartRate || 72;
 
     return {
-      name: day.day,
+      name: getDayLabel(day.day),
       value: val,
       raw: day
     };
   });
-
-  const getMetricLabel = () => {
-    switch (chartMetric) {
-      case 'steps': return 'Steps';
-      case 'sleepHours': return 'Sleep (Hours)';
-      case 'waterIntake': return 'Water (L)';
-      case 'caloriesBurned': return 'Calories Burned (kcal)';
-      case 'heartRate': return 'Heart Rate (BPM)';
-    }
-  };
 
   // Weekly Activity Matrix: Days summary
   const weeklyDays = chartHistory.length === 7 ? chartHistory : [
@@ -351,13 +380,13 @@ export default function Dashboard() {
                 label={<span className="text-[9px] font-black">{completionPercent}%</span>}
               />
               <div className="flex flex-col justify-center">
-                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-tight">Health Profile</span>
+                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider leading-tight">{t('dash.healthProfile', 'Health Profile')}</span>
                 <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-tight">
-                  <span className={allergies.length > 0 ? "text-emerald-600" : "text-slate-400"}>Allergies ✓</span>
+                  <span className={allergies.length > 0 ? "text-emerald-600" : "text-slate-400"}>{t('dash.allergies', 'Allergies')} ✓</span>
                   <span className="text-slate-300">•</span>
-                  <span className={weight ? "text-emerald-600" : "text-slate-400"}>Vitals ✓</span>
+                  <span className={weight ? "text-emerald-600" : "text-slate-400"}>{t('dash.vitals', 'Vitals')} ✓</span>
                   <span className="text-slate-300">•</span>
-                  <span className={medicalConditions.length > 0 ? "text-emerald-600" : "text-slate-400"}>Conditions ✓</span>
+                  <span className={medicalConditions.length > 0 ? "text-emerald-600" : "text-slate-400"}>{t('dash.conditions', 'Conditions')} ✓</span>
                 </div>
               </div>
             </div>
@@ -365,7 +394,7 @@ export default function Dashboard() {
               onClick={() => navigate('/settings?tab=health')}
               className="text-[11px] font-bold text-[#134E2F] dark:text-[#C1F3BA] hover:underline pl-1 cursor-pointer"
             >
-              Edit
+              {t('dash.edit', 'Edit')}
             </button>
           </div>
 
@@ -379,8 +408,8 @@ export default function Dashboard() {
                 <Check className="w-3.5 h-3.5 stroke-[3]" />
               </div>
               <div className="flex flex-col justify-center text-left">
-                <span className="font-bold text-[12px] leading-tight text-emerald-950 dark:text-emerald-100">Today's Log Submitted</span>
-                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium leading-tight">1 submission per day</span>
+                <span className="font-bold text-[12px] leading-tight text-emerald-950 dark:text-emerald-100">{t('dash.logSubmitted', "Today's Log Submitted")}</span>
+                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium leading-tight">{t('dash.oneSubmission', '1 submission per day')}</span>
               </div>
             </div>
           ) : (
@@ -397,7 +426,7 @@ export default function Dashboard() {
               className="bg-[#134E2F] hover:bg-[#0E3B24] text-white flex items-center gap-2 text-xs font-bold rounded-2xl shadow-md shadow-[#134E2F]/20 px-5 h-[46px] transition-transform hover:scale-[1.02] cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Log Today's Metrics</span>
+              <span>{t('dash.logToday', "Log Today's Metrics")}</span>
             </Button>
           )}
         </div>
@@ -411,13 +440,15 @@ export default function Dashboard() {
         <Card className="bg-white/95 dark:bg-[#151A12] border border-slate-200/80 dark:border-[#273322] rounded-3xl p-4 sm:p-5 flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-              <Award className="w-3.5 h-3.5 text-emerald-600" /> Health Score
+              <Award className="w-3.5 h-3.5 text-emerald-600" /> {t('dash.healthScore', 'Health Score')}
             </span>
             <Badge variant="outline" className={cn(
               "text-[9px] font-bold px-1.5 py-0.5 border",
-              hasScore ? "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300" : "text-amber-700 bg-amber-50 dark:bg-amber-950/40 border-amber-300"
+              hasScore && score && score >= 85 ? "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300" :
+              hasScore && score && score >= 70 ? "text-emerald-800 bg-emerald-100/50 dark:bg-emerald-950/40 border-emerald-300" :
+              hasScore ? "text-amber-700 bg-amber-50 dark:bg-amber-950/40 border-amber-300" : "text-slate-600 bg-slate-50 border-slate-200"
             )}>
-              {scoreStatus}
+              {getScoreStatusLabel(scoreStatus)}
             </Badge>
           </div>
 
@@ -427,12 +458,23 @@ export default function Dashboard() {
                 {hasScore ? score : '--'}
                 <span className="text-xs font-normal text-slate-400">/100</span>
               </div>
+              {dashboardData?.healthScore?.dietImpact?.mealsEvaluated > 0 && (
+                <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+                  <span>
+                    {dashboardData.healthScore.dietImpact.allergenConflictCount > 0
+                      ? '⚠️ Allergen penalty'
+                      : dashboardData.healthScore.dietImpact.avgFoodHealthScore < 65
+                        ? `📉 Low food rating (${dashboardData.healthScore.dietImpact.avgFoodHealthScore}/100)`
+                        : `🥗 High food rating (${dashboardData.healthScore.dietImpact.avgFoodHealthScore}/100)`}
+                  </span>
+                </div>
+              )}
             </div>
             <CircularRing
               value={hasScore ? score : 0}
               size={44}
               strokeWidth={4}
-              color="#134E2F"
+              color={score && score >= 80 ? '#134E2F' : score && score >= 65 ? '#D97706' : '#DC2626'}
               label={hasScore ? `${score}` : '—'}
             />
           </div>
@@ -442,11 +484,11 @@ export default function Dashboard() {
         <Card className="bg-white/95 dark:bg-[#151A12] border border-slate-200/80 dark:border-[#273322] rounded-3xl p-4 sm:p-5 flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-              <Scale className="w-3.5 h-3.5 text-blue-600" /> Body Mass
+              <Scale className="w-3.5 h-3.5 text-blue-600" /> {t('dash.bodyMass', 'Body Mass')}
             </span>
             {bmiCategory && (
               <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0.5 border-emerald-200 text-emerald-800 dark:text-emerald-300">
-                {bmiCategory}
+                {getBmiCategoryLabel(bmiCategory)}
               </Badge>
             )}
           </div>
@@ -469,7 +511,7 @@ export default function Dashboard() {
         <Card className="bg-white/95 dark:bg-[#151A12] border border-slate-200/80 dark:border-[#273322] rounded-3xl p-4 sm:p-5 flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-              <Droplets className="w-3.5 h-3.5 text-blue-500" /> Hydration
+              <Droplets className="w-3.5 h-3.5 text-blue-500" /> {t('dash.hydration', 'Hydration')}
             </span>
             <span className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400">
               {Math.round((waterCurrent / (waterTarget || 2.5)) * 100)}%
@@ -494,7 +536,7 @@ export default function Dashboard() {
         <Card className="bg-white/95 dark:bg-[#151A12] border border-slate-200/80 dark:border-[#273322] rounded-3xl p-4 sm:p-5 flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-              <Footprints className="w-3.5 h-3.5 text-emerald-600" /> Daily Steps
+              <Footprints className="w-3.5 h-3.5 text-emerald-600" /> {t('dash.dailySteps', 'Daily Steps')}
             </span>
             <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400">
               {Math.min(100, Math.round((stepsCurrent / stepsTarget) * 100))}%
@@ -519,7 +561,7 @@ export default function Dashboard() {
         <Card className="bg-white/95 dark:bg-[#151A12] border border-slate-200/80 dark:border-[#273322] rounded-3xl p-4 sm:p-5 flex flex-col justify-between shadow-2xs hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-              <Moon className="w-3.5 h-3.5 text-purple-500" /> Sleep Rest
+              <Moon className="w-3.5 h-3.5 text-purple-500" /> {t('dash.sleepRest', 'Sleep Rest')}
             </span>
             <span className="text-[10px] font-extrabold text-purple-600 dark:text-purple-400">
               {Math.min(100, Math.round((sleepHours / 8) * 100))}%
@@ -552,25 +594,25 @@ export default function Dashboard() {
             <div>
               <div className="flex items-center gap-2">
                 <CardTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                  Weekly Health Trends
+                  {t('dash.weeklyTrends', 'Weekly Health Trends')}
                 </CardTitle>
                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200">
-                  7-Day Trends
+                  {t('dash.7dayTrends', '7-Day Trends')}
                 </span>
               </div>
               <CardDescription className="text-slate-400 text-xs mt-0.5">
-                Switch metric to inspect your 7-day progress and daily consistency.
+                {t('dash.trendsSubtitle', 'Switch metric to inspect your 7-day progress and daily consistency.')}
               </CardDescription>
             </div>
 
             {/* Segmented Metric Control */}
             <div className="flex items-center bg-slate-100 dark:bg-[#1C2318] p-1 rounded-2xl border border-slate-200/60 dark:border-[#273322] overflow-x-auto max-w-full">
               {[
-                { id: 'steps', label: 'Steps', icon: Footprints },
-                { id: 'sleepHours', label: 'Sleep', icon: Moon },
-                { id: 'waterIntake', label: 'Water', icon: Droplets },
-                { id: 'caloriesBurned', label: 'Burn', icon: Flame },
-                { id: 'heartRate', label: 'Heart', icon: Heart }
+                { id: 'steps', label: t('dash.steps', 'Steps'), icon: Footprints },
+                { id: 'sleepHours', label: t('dash.sleep', 'Sleep'), icon: Moon },
+                { id: 'waterIntake', label: t('dash.water', 'Water'), icon: Droplets },
+                { id: 'caloriesBurned', label: t('dash.burn', 'Burn'), icon: Flame },
+                { id: 'heartRate', label: t('dash.heart', 'Heart'), icon: Heart }
               ].map((btn) => {
                 const Icon = btn.icon;
                 const isActive = chartMetric === btn.id;
@@ -634,7 +676,7 @@ export default function Dashboard() {
                         : "hover:bg-white/60 dark:hover:bg-[#151A12]/50"
                     )}
                   >
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">{dayItem.day}</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">{getDayLabel(dayItem.day)}</span>
 
                     {/* Mini Vertical Progress Pillar */}
                     <div className="w-2.5 h-10 bg-slate-200 dark:bg-slate-700 rounded-full my-1.5 flex flex-col justify-end overflow-hidden">
@@ -657,7 +699,7 @@ export default function Dashboard() {
                     </div>
 
                     {isToday && (
-                      <span className="text-[9px] font-extrabold text-[#134E2F] dark:text-[#C1F3BA] mt-1">Today</span>
+                      <span className="text-[9px] font-extrabold text-[#134E2F] dark:text-[#C1F3BA] mt-1">{t('dash.today', 'Today')}</span>
                     )}
                   </div>
                 );
@@ -702,10 +744,10 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <CheckSquare className="w-4 h-4 text-[#134E2F] dark:text-[#C1F3BA]" />
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Today's Goals</h3>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">{t('dash.todaysGoals', "Today's Goals")}</h3>
               </div>
               <span className="text-xs font-bold text-slate-400">
-                {([waterCurrent >= waterTarget, stepsCurrent >= stepsTarget, sleepHours >= 7, nutritionCalories > 0].filter(Boolean).length)}/4 Complete
+                {([waterCurrent >= waterTarget, stepsCurrent >= stepsTarget, sleepHours >= 7, nutritionCalories > 0].filter(Boolean).length)}/4 {t('dash.complete', 'Complete')}
               </span>
             </div>
 
@@ -717,7 +759,7 @@ export default function Dashboard() {
                     <Droplets className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">Hydration Goal</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">{t('dash.hydrationGoal', 'Hydration Goal')}</span>
                     <span className="text-[11px] text-slate-400">{waterCurrent.toFixed(1)} / {waterTarget.toFixed(1)} L</span>
                   </div>
                 </div>
@@ -743,7 +785,7 @@ export default function Dashboard() {
                     <Footprints className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">Step Target</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">{t('dash.stepTarget', 'Step Target')}</span>
                     <span className="text-[11px] text-slate-400">{stepsCurrent.toLocaleString()} / {stepsTarget.toLocaleString()} steps</span>
                   </div>
                 </div>
@@ -769,7 +811,7 @@ export default function Dashboard() {
                     <Moon className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">Restorative Sleep</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">{t('dash.restorativeSleep', 'Restorative Sleep')}</span>
                     <span className="text-[11px] text-slate-400">{sleepStr} / 8.0 hrs</span>
                   </div>
                 </div>
@@ -795,7 +837,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[#134E2F] dark:text-[#C1F3BA]" />
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Today's Reminders</h3>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">{t('dash.todaysReminders', "Today's Reminders")}</h3>
               </div>
               <Button
                 variant="outline"
@@ -803,7 +845,7 @@ export default function Dashboard() {
                 onClick={() => setIsReminderModalOpen(true)}
                 className="h-7 text-[11px] font-bold rounded-xl px-2.5"
               >
-                <Plus className="w-3 h-3 mr-1" /> Reminder
+                <Plus className="w-3 h-3 mr-1" /> {t('dash.reminder', 'Reminder')}
               </Button>
             </div>
 
@@ -843,12 +885,12 @@ export default function Dashboard() {
                 ))
               ) : (
                 <div className="text-center py-6 text-xs text-slate-400">
-                  <p>No active reminders scheduled for today.</p>
+                  <p>{t('dash.noReminders', 'No active reminders scheduled for today.')}</p>
                   <button
                     onClick={() => setIsReminderModalOpen(true)}
                     className="text-[#134E2F] dark:text-[#C1F3BA] font-bold hover:underline mt-1 inline-block"
                   >
-                    + Add your first reminder
+                    {t('dash.addFirstReminder', '+ Add your first reminder')}
                   </button>
                 </div>
               )}
@@ -878,16 +920,16 @@ export default function Dashboard() {
                 <X className="w-5 h-5" />
               </button>
 
-              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-1">Log Today's Health Metrics</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">Enter your daily activity and hydration stats (1 submission per day).</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-1">{t('dash.logModalTitle', "Log Today's Health Metrics")}</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">{t('dash.logModalSubtitle', 'Enter your daily activity and hydration stats (1 submission per day).')}</p>
 
               {hasLoggedToday && (
                 <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl text-emerald-900 dark:text-emerald-200 text-xs flex items-start gap-2.5 mb-4">
                   <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold block text-[13px]">Today's Log Already Recorded</span>
+                    <span className="font-bold block text-[13px]">{t('dash.logRecorded', "Today's Log Already Recorded")}</span>
                     <span className="text-[11px] text-emerald-800 dark:text-emerald-300">
-                      Cura enforces a 1-log-per-day rule to protect the accuracy of your health analytics. You can log new metrics again tomorrow.
+                      {t('dash.ruleNotice', 'Cura enforces a 1-log-per-day rule to protect the accuracy of your health analytics. You can log new metrics again tomorrow.')}
                     </span>
                   </div>
                 </div>
@@ -901,7 +943,7 @@ export default function Dashboard() {
 
               <form onSubmit={handleSaveDailyMetric} className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Steps Walked</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">{t('dash.stepsWalked', 'Steps Walked')}</label>
                   <Input
                     type="number"
                     value={logSteps}
@@ -915,7 +957,7 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Water (Liters)</label>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">{t('dash.waterLiters', 'Water (Liters)')}</label>
                     <Input
                       type="number"
                       step="0.1"
@@ -930,7 +972,7 @@ export default function Dashboard() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Sleep (Hours)</label>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">{t('dash.sleepHours', 'Sleep (Hours)')}</label>
                     <Input
                       type="number"
                       step="0.1"
@@ -947,7 +989,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Calories Burned (kcal)</label>
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t('dash.caloriesBurned', 'Calories Burned (kcal)')}</label>
                       {!hasLoggedToday && (
                         <button
                           type="button"
@@ -961,7 +1003,7 @@ export default function Dashboard() {
                           className="text-[10px] text-[#134E2F] dark:text-[#C1F3BA] font-bold hover:underline cursor-pointer"
                           title="Auto-calculate based on Steps, Workout, and Body Weight"
                         >
-                          Auto-calc
+                          {t('dash.autoCalc', 'Auto-calc')}
                         </button>
                       )}
                     </div>
@@ -975,7 +1017,7 @@ export default function Dashboard() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Workout (Minutes)</label>
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">{t('dash.workoutMinutes', 'Workout (Minutes)')}</label>
                     <Input
                       type="number"
                       value={logWorkout}
@@ -989,7 +1031,7 @@ export default function Dashboard() {
 
                 <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-100 dark:border-[#273322]">
                   <Button type="button" variant="outline" onClick={() => setIsLogModalOpen(false)}>
-                    {hasLoggedToday ? "Close" : "Cancel"}
+                    {hasLoggedToday ? "Close" : t('dash.cancel', 'Cancel')}
                   </Button>
                   <Button
                     type="submit"
@@ -997,7 +1039,7 @@ export default function Dashboard() {
                     className="bg-[#134E2F] hover:bg-[#0E3B23] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl px-6 flex items-center gap-2 shadow-md shadow-[#134E2F]/20 cursor-pointer"
                   >
                     {isSavingLog ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    <span>{hasLoggedToday ? "Submitted for Today" : "Save Metrics"}</span>
+                    <span>{hasLoggedToday ? "Submitted for Today" : (isSavingLog ? t('dash.saving', 'Saving...') : t('dash.saveMetrics', 'Save Metrics'))}</span>
                   </Button>
                 </div>
               </form>
@@ -1025,8 +1067,8 @@ export default function Dashboard() {
                 <X className="w-5 h-5" />
               </button>
 
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Add Daily Reminder</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Set up a scheduled prompt for medicine, hydration, or sleep.</p>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">{t('dash.addReminderModal', 'Add Medicine & Health Reminder')}</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">{t('dash.logModalSubtitle', 'Set up a scheduled prompt for medicine, hydration, or sleep.')}</p>
 
               <form onSubmit={handleCreateReminder} className="space-y-3.5">
                 <div>
@@ -1044,7 +1086,7 @@ export default function Dashboard() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Title</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">{t('dash.medicineName', 'Title / Medicine Name')}</label>
                   <Input
                     type="text"
                     value={reminderTitle}
@@ -1056,7 +1098,7 @@ export default function Dashboard() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Scheduled Time</label>
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">{t('dash.time', 'Time')}</label>
                   <Input
                     type="text"
                     value={reminderTime}
@@ -1069,7 +1111,7 @@ export default function Dashboard() {
 
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-[#273322]">
                   <Button type="button" variant="outline" size="sm" onClick={() => setIsReminderModalOpen(false)}>
-                    Cancel
+                    {t('dash.cancel', 'Cancel')}
                   </Button>
                   <Button
                     type="submit"
@@ -1077,7 +1119,7 @@ export default function Dashboard() {
                     disabled={isSavingReminder || !reminderTitle.trim()}
                     className="bg-[#134E2F] hover:bg-[#0E3B24] text-white font-bold"
                   >
-                    {isSavingReminder ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save Reminder'}
+                    {isSavingReminder ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t('dash.addReminderBtn', 'Add Reminder')}
                   </Button>
                 </div>
               </form>

@@ -37,7 +37,7 @@ class HealthDashboardController {
       const targetSteps = metrics.targetSteps || profile?.targets?.steps || 8000;
       const targetSleep = metrics.targetSleepHours || 8;
 
-      const healthScoreData = HealthScoreService.calculateDailyScore(profile, nutritionTotals, metrics);
+      const healthScoreData = HealthScoreService.calculateDailyScore(profile, nutritionTotals, metrics, recentMeals);
 
       // Fetch 7-day trend data for frontend charts based on today's calendar date
       const [year, month, day] = today.split('-').map(Number);
@@ -81,9 +81,11 @@ class HealthDashboardController {
         };
       });
 
+      const hasLoggedMeals = Boolean(recentMeals && recentMeals.length > 0);
       const isDailyLogSubmitted = Boolean(
         metrics.isDailyLogSubmitted ||
-        (metrics.steps > 0 && (metrics.activeCaloriesBurnt > 0 || metrics.exerciseDuration > 0))
+        (metrics.steps > 0 && (metrics.activeCaloriesBurnt > 0 || metrics.exerciseDuration > 0)) ||
+        hasLoggedMeals
       );
 
       return ResponseHandler.success(res, 'Health dashboard data retrieved successfully', {
@@ -97,7 +99,10 @@ class HealthDashboardController {
         healthScore: {
           score: healthScoreData.overallScore,
           status: healthScoreData.status,
-          grade: healthScoreData.grade
+          grade: healthScoreData.grade,
+          breakdown: healthScoreData.breakdown,
+          dietImpact: healthScoreData.dietImpact,
+          insights: healthScoreData.insights
         },
         metrics: {
           waterIntake: {

@@ -52,6 +52,17 @@ export const Auth: React.FC = () => {
     setActiveTab(tab);
   };
 
+  // Email validation helper to catch typos like t6.@gmail.com
+  const validateEmail = (emailStr: string): string | null => {
+    const clean = emailStr.trim();
+    if (!clean) return 'Please enter your email address.';
+    const emailRegex = /^[a-zA-Z0-9]+([._%+-][a-zA-Z0-9]+)*@[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(clean) || clean.includes('..') || clean.endsWith('.')) {
+      return 'Please enter a valid email format (e.g. name@example.com).';
+    }
+    return null;
+  };
+
   // Password validation helper
   const validatePassword = (pass: string) => {
     if (pass.length < 6) {
@@ -66,8 +77,14 @@ export const Auth: React.FC = () => {
     setSuccessMessage(null);
     clearError();
 
-    if (!email || !password) {
-      setValidationError('Please fill in both email and password.');
+    const emailErr = validateEmail(email);
+    if (emailErr) {
+      setValidationError(emailErr);
+      return;
+    }
+
+    if (!password) {
+      setValidationError('Please enter your password.');
       return;
     }
 
@@ -85,8 +102,14 @@ export const Auth: React.FC = () => {
     setSuccessMessage(null);
     clearError();
 
-    if (!email || !password || !name) {
-      setValidationError('Please provide your name, email, and password.');
+    if (!name.trim()) {
+      setValidationError('Please provide your full name.');
+      return;
+    }
+
+    const emailErr = validateEmail(email);
+    if (emailErr) {
+      setValidationError(emailErr);
       return;
     }
 
@@ -110,8 +133,9 @@ export const Auth: React.FC = () => {
     setSuccessMessage(null);
     clearError();
 
-    if (!email) {
-      setValidationError('Please enter your registered email address.');
+    const emailErr = validateEmail(email);
+    if (emailErr) {
+      setValidationError(emailErr);
       return;
     }
 

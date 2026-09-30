@@ -4,8 +4,10 @@
 
 const memoryDb = require('../database/memoryStore');
 const { REMINDER_TYPES } = require('../config/constants');
-const { supabase, isSupabaseConfigured } = require('../services/supabaseService');
+const { supabaseAdmin, supabase, isSupabaseConfigured } = require('../services/supabaseService');
 const logger = require('../utils/logger');
+
+const db = supabaseAdmin || supabase;
 
 class Notification {
   static async create(reminderData) {
@@ -20,21 +22,23 @@ class Notification {
       notes: reminderData.notes || ''
     };
 
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('notifications')
           .insert([payload])
           .select()
           .single();
         if (!error && data) {
-          // Sync with local memoryDb
-          await memoryDb.create('notifications', data);
           return data;
         }
-        if (error) logger.error('Supabase create notification failed, falling back:', error);
+        if (error) {
+          logger.error('Supabase create notification failed:', error);
+          throw error;
+        }
       } catch (err) {
-        logger.error('Supabase notifications create error, falling back:', err);
+        logger.error('Supabase notifications create error:', err);
+        throw err;
       }
     }
 
@@ -42,17 +46,18 @@ class Notification {
   }
 
   static async findByUserId(userId) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('notifications')
           .select('*')
           .eq('userId', userId)
           .order('time', { ascending: true });
         if (!error && data) return data;
       } catch (err) {
-        logger.error('Supabase findByUserId error, falling back:', err);
+        logger.error('Supabase findByUserId error:', err);
       }
+      return [];
     }
 
     const list = await memoryDb.find('notifications', { userId });
@@ -60,17 +65,18 @@ class Notification {
   }
 
   static async findById(id) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('notifications')
           .select('*')
           .eq('id', id)
           .maybeSingle();
         if (!error && data) return data;
       } catch (err) {
-        logger.error('Supabase findById error, falling back:', err);
+        logger.error('Supabase findById error:', err);
       }
+      return null;
     }
     return memoryDb.findById('notifications', id);
   }
@@ -80,21 +86,21 @@ class Notification {
     if (!item || item.userId !== userId) return null;
     const newStatus = !item.isActive;
 
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('notifications')
           .update({ isActive: newStatus })
           .eq('id', id)
           .select()
           .single();
         if (!error && data) {
-          await memoryDb.update('notifications', id, data);
           return data;
         }
       } catch (err) {
-        logger.error('Supabase notifications toggle error, falling back:', err);
+        logger.error('Supabase notifications toggle error:', err);
       }
+      return null;
     }
 
     return memoryDb.update('notifications', id, { isActive: newStatus });
@@ -104,18 +110,16 @@ class Notification {
     const item = await this.findById(id);
     if (!item || item.userId !== userId) return false;
 
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { error } = await supabase
+        const { error } = await db
           .from('notifications')
           .delete()
           .eq('id', id);
-        if (!error) {
-          await memoryDb.delete('notifications', id);
-          return true;
-        }
+        return !error;
       } catch (err) {
-        logger.error('Supabase notifications delete error, falling back:', err);
+        logger.error('Supabase notifications delete error:', err);
+        return false;
       }
     }
 

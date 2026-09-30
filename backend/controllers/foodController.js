@@ -9,6 +9,8 @@ const HealthProfile = require('../models/HealthProfile');
 const NutritionLog = require('../models/NutritionLog');
 const ResponseHandler = require('../utils/responseHandler');
 const { HTTP_STATUS } = require('../config/constants');
+const SupabaseStorageService = require('../services/supabaseStorageService');
+const logger = require('../utils/logger');
 
 class FoodController {
   /**
@@ -19,6 +21,21 @@ class FoodController {
     try {
       const { mealType, autoLog } = req.body;
       const textHint = req.body.textHint || '';
+
+      // Upload food image to Supabase Storage
+      let uploadedImageUrl = null;
+      if (req.file) {
+        try {
+          const uploadRes = await SupabaseStorageService.uploadFile(req.file, {
+            folder: 'food',
+            userId: req.user.id,
+            prefix: 'meal'
+          });
+          uploadedImageUrl = uploadRes.publicUrl;
+        } catch (uploadErr) {
+          logger.warn('Failed to upload meal image to Supabase Storage:', uploadErr.message);
+        }
+      }
 
       // Perform Vision AI analysis
       const analysis = await GeminiService.analyzeFoodImage(req.file, textHint);
@@ -35,12 +52,13 @@ class FoodController {
           fat: analysis.nutritionEstimate.fat,
           fiber: analysis.nutritionEstimate.fiber,
           ingredients: analysis.ingredients,
-          imageUrl: req.file ? `/uploads/${req.file.filename}` : null
+          imageUrl: uploadedImageUrl
         });
       }
 
       return ResponseHandler.success(res, 'Food image analyzed successfully', {
         analysis,
+        imageUrl: uploadedImageUrl,
         loggedMeal: savedLog
       });
     } catch (error) {
@@ -196,6 +214,75 @@ class FoodController {
       next(error);
     }
   }
+
+  /**
+   * Log Meal to Nutrition Diary (Direct logging from Food Scanner or Manual entry)
+   * POST /api/food/log-meal
+   */
+  static async logMeal(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const today = new Date().toISOString().split('T')[0];
+      const {
+        name,
+        calories,
+        protein,
+        carbs,
+        fat,
+        fiber,
+        ingredients,
+        barcode,
+        imageUrl,
+        mealType
+      } = req.body;
+
+      if (!name || !name.trim()) {
+        return ResponseHandler.error(res, 'Meal name is required to log meal', HTTP_STATUS.BAD_REQUEST);
+      }
+
+      const loggedMeal = await NutritionLog.create({
+        userId,
+        date: today,
+        mealType: mealType || 'lunch',
+        name: name.trim(),
+        calories: Number(calories) || 0,
+        protein: Number(protein) || 0,
+        carbs: Number(carbs) || 0,
+        fat: Number(fat) || 0,
+        fiber: Number(fiber) || 4,
+        ingredients: Array.isArray(ingredients) ? ingredients : [],
+        barcode: barcode || null,
+        imageUrl: imageUrl || null
+      });
+
+      // Recalculate immediate health score impact
+      const HealthMetric = require('../models/HealthMetric');
+      const HealthScoreService = require('../services/healthScoreService');
+
+      const [profile, metrics, nutritionTotals, recentMeals] = await Promise.all([
+        HealthProfile.findByUserId(userId),
+        HealthMetric.getByDate(userId, today),
+        NutritionLog.getDailyTotals(userId, today),
+        NutritionLog.findByUserAndDate(userId, today)
+      ]);
+
+      const healthScoreData = HealthScoreService.calculateDailyScore(profile, nutritionTotals, metrics, recentMeals);
+
+      return ResponseHandler.success(res, 'Meal logged successfully to Nutrition Diary', {
+        loggedMeal,
+        healthScore: {
+          score: healthScoreData.overallScore,
+          status: healthScoreData.status,
+          grade: healthScoreData.grade,
+          dietImpact: healthScoreData.dietImpact,
+          insights: healthScoreData.insights
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = FoodController;
+

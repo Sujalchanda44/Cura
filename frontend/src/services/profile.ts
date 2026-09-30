@@ -67,6 +67,7 @@ export interface MeasurementsData {
 }
 
 export interface OnboardingData {
+  language?: string;
   name: string;
   dateOfBirth?: string;
   age: number;
@@ -120,6 +121,7 @@ export interface OnboardingData {
   sleepHours: number | string;
   sleepQuality?: string;
   dietType?: string;
+  dietaryRestrictions?: string[];
   waterIntake: string;
   smoking: string;
   alcohol: string;
@@ -414,6 +416,8 @@ export const profileService = {
           sleepHours: data.sleepHours,
           waterIntake: data.waterIntake,
           medications: data.medications,
+          dietType: data.dietType,
+          language: data.language,
           emergencyContact: data.emergencyContact,
         },
         updatedAt: new Date().toISOString(),
@@ -439,6 +443,8 @@ export const profileService = {
         bmiCategory,
         settings: {
           ...healthProfileRecord.settings,
+          language: data.language,
+          dietType: data.dietType,
           onboardingData: healthProfileRecord
         },
         updatedAt: new Date().toISOString()
@@ -446,7 +452,13 @@ export const profileService = {
 
       await Promise.all([
         supabase.from('health_profiles').upsert([supabasePayload]),
-        supabase.from('users').update({ name: data.name }).eq('id', userId),
+        supabase.from('users').update({ 
+          name: data.name,
+          settings: {
+            language: data.language,
+            isOnboarded: true
+          }
+        }).eq('id', userId),
       ]);
 
       return {

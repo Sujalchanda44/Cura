@@ -7,6 +7,8 @@ const User = require('../models/User');
 const HealthProfile = require('../models/HealthProfile');
 const ResponseHandler = require('../utils/responseHandler');
 const { HTTP_STATUS } = require('../config/constants');
+const SupabaseStorageService = require('../services/supabaseStorageService');
+const logger = require('../utils/logger');
 
 class UserController {
   /**
@@ -62,6 +64,7 @@ class UserController {
         settings: {
           ...existingSettings,
           ...(req.body.settings || {}),
+          ...(req.body.language ? { language: req.body.language } : {}),
           isOnboarded: true
         }
       });
@@ -125,7 +128,7 @@ class UserController {
   }
 
   /**
-   * Upload user avatar
+   * Upload user avatar / DP to Supabase Storage
    * POST /api/user/avatar or POST /api/profile/avatar
    */
   static async uploadAvatar(req, res, next) {
@@ -133,33 +136,43 @@ class UserController {
       let avatarUrl = null;
 
       if (req.file) {
-        avatarUrl = `/uploads/${req.file.filename}`;
+        // Upload from in-memory multipart file buffer directly to Supabase Storage
+        const uploadResult = await SupabaseStorageService.uploadFile(req.file, {
+          folder: 'avatars',
+          userId: req.user.id,
+          prefix: 'avatar'
+        });
+        avatarUrl = uploadResult.publicUrl;
       } else if (req.body?.avatarBase64) {
-        // Base64 upload fallback
-        const fs = require('fs');
-        const path = require('path');
-        const matches = req.body.avatarBase64.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
-        const uploadDir = path.resolve(__dirname, '../../uploads');
-        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-        const ext = matches ? (matches[1] === 'jpeg' ? 'jpg' : matches[1]) : 'png';
-        const rawData = matches ? matches[2] : req.body.avatarBase64;
-        const filename = `avatar-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
-        const filePath = path.join(uploadDir, filename);
-
-        fs.writeFileSync(filePath, Buffer.from(rawData, 'base64'));
-        avatarUrl = `/uploads/${filename}`;
+        // Upload base64 image data directly to Supabase Storage
+        const uploadResult = await SupabaseStorageService.uploadBase64(req.body.avatarBase64, {
+          folder: 'avatars',
+          userId: req.user.id,
+          prefix: 'avatar'
+        });
+        avatarUrl = uploadResult.publicUrl;
       } else {
         return ResponseHandler.error(res, 'No image file or image data provided', HTTP_STATUS.BAD_REQUEST);
       }
 
+      // Check for previous avatar to clean up in cloud storage
+      try {
+        const previousUser = await User.findById(req.user.id);
+        if (previousUser?.avatarUrl && previousUser.avatarUrl.includes('/storage/v1/object/public/')) {
+          await SupabaseStorageService.deleteFile(previousUser.avatarUrl);
+        }
+      } catch (cleanErr) {
+        logger.warn('Failed to clean up old avatar from cloud storage:', cleanErr.message);
+      }
+
       const updated = await User.update(req.user.id, { avatarUrl });
 
-      return ResponseHandler.success(res, 'Avatar uploaded successfully', {
+      return ResponseHandler.success(res, 'Avatar uploaded successfully to Supabase Storage', {
         avatarUrl,
         user: User.toSafeObject(updated)
       });
     } catch (error) {
+      logger.error('Error uploading avatar to Supabase:', error);
       next(error);
     }
   }
@@ -170,6 +183,16 @@ class UserController {
    */
   static async deleteAvatar(req, res, next) {
     try {
+      // Clean up file in Supabase Storage if it was uploaded there
+      try {
+        const currentUser = await User.findById(req.user.id);
+        if (currentUser?.avatarUrl && currentUser.avatarUrl.includes('/storage/v1/object/public/')) {
+          await SupabaseStorageService.deleteFile(currentUser.avatarUrl);
+        }
+      } catch (cleanErr) {
+        logger.warn('Failed to delete avatar from Supabase Storage:', cleanErr.message);
+      }
+
       const updated = await User.update(req.user.id, { avatarUrl: null });
       return ResponseHandler.success(res, 'Avatar removed successfully', {
         avatarUrl: null,

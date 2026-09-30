@@ -22,6 +22,7 @@ const nutritionAnalysisSchema = {
 router.use(authenticate);
 
 router.post('/upload-image', handleUpload(uploadDisk.single('foodImage')), FoodController.uploadFoodImage);
+router.post('/log-meal', FoodController.logMeal);
 router.post('/scan-barcode', validate(barcodeSchema), FoodController.scanBarcode);
 router.get('/product/:barcode', FoodController.getProductDetails);
 router.post('/check-allergens', FoodController.checkAllergens);

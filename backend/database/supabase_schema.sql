@@ -226,3 +226,37 @@ VALUES
     ('11111111-1111-1111-1111-111111111111'::uuid, 'usr_demo_002', 'Multivitamin Complex', 'medicine', '1 Tablet', '08:30', ARRAY['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], true, 'Take after breakfast with water'),
     ('22222222-2222-2222-2222-222222222222'::uuid, 'usr_demo_002', 'Hydration Check', 'water', '500ml Water', '14:00', ARRAY['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], true, 'Drink a full glass of water')
 ON CONFLICT (id) DO NOTHING;
+
+-- ==============================================================
+-- 11. SUPABASE STORAGE BUCKET CONFIGURATION (Zero Local Device Storage)
+-- Creates the public storage bucket for user profile pictures (DP) and meal scans
+-- ==============================================================
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'cura-uploads',
+    'cura-uploads',
+    true,
+    10485760, -- 10 MB maximum
+    ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif']::text[]
+)
+ON CONFLICT (id) DO UPDATE SET 
+    public = true,
+    file_size_limit = 10485760,
+    allowed_mime_types = ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif']::text[];
+
+DROP POLICY IF EXISTS "Public Read Cura Uploads" ON storage.objects;
+CREATE POLICY "Public Read Cura Uploads" ON storage.objects
+    FOR SELECT USING (bucket_id = 'cura-uploads');
+
+DROP POLICY IF EXISTS "Public Insert Cura Uploads" ON storage.objects;
+CREATE POLICY "Public Insert Cura Uploads" ON storage.objects
+    FOR INSERT WITH CHECK (bucket_id = 'cura-uploads');
+
+DROP POLICY IF EXISTS "Public Update Cura Uploads" ON storage.objects;
+CREATE POLICY "Public Update Cura Uploads" ON storage.objects
+    FOR UPDATE USING (bucket_id = 'cura-uploads');
+
+DROP POLICY IF EXISTS "Public Delete Cura Uploads" ON storage.objects;
+CREATE POLICY "Public Delete Cura Uploads" ON storage.objects
+    FOR DELETE USING (bucket_id = 'cura-uploads');
+

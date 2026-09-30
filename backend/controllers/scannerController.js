@@ -14,6 +14,7 @@ const NutritionLog = require('../models/NutritionLog');
 const ResponseHandler = require('../utils/responseHandler');
 const { HTTP_STATUS } = require('../config/constants');
 const logger = require('../utils/logger');
+const SupabaseStorageService = require('../services/supabaseStorageService');
 
 class ScannerController {
   /**
@@ -116,6 +117,33 @@ class ScannerController {
       // 3. Multimodal Vision Pipeline via AI Gateway (Primary -> Secondary -> Emergency Fallback)
       else if (file || imageBase64 || textHint) {
         scanType = 'image_vision';
+
+        // 1. Upload scan image to Supabase Storage (zero local disk storage)
+        let uploadedImageUrl = null;
+        if (file) {
+          try {
+            const uploadRes = await SupabaseStorageService.uploadFile(file, {
+              folder: 'scans',
+              userId,
+              prefix: 'food'
+            });
+            uploadedImageUrl = uploadRes.publicUrl;
+          } catch (uploadErr) {
+            logger.warn('Failed to upload scanner image to Supabase Storage:', uploadErr.message);
+          }
+        } else if (imageBase64) {
+          try {
+            const uploadRes = await SupabaseStorageService.uploadBase64(imageBase64, {
+              folder: 'scans',
+              userId,
+              prefix: 'food'
+            });
+            uploadedImageUrl = uploadRes.publicUrl;
+          } catch (uploadErr) {
+            logger.warn('Failed to upload scanner base64 image to Supabase Storage:', uploadErr.message);
+          }
+        }
+
         const visionAnalysis = await FoodAnalysisGateway.analyzeFoodImage(
           file,
           userHealthContext,
@@ -157,7 +185,7 @@ class ScannerController {
           alternativeSuggestion: visionAnalysis.alternativeSuggestion,
           uncertainIngredients: visionAnalysis.uncertainIngredients || [],
           labelVerificationRequired: visionAnalysis.labelVerificationRequired,
-          imageUrl: file ? `/uploads/${file.filename}` : null,
+          imageUrl: uploadedImageUrl,
           safetyStatus: visionAnalysis.riskLevel === 'HIGH' ? 'ALLERGEN_WARNING' : 'SAFE'
         };
       } else {
@@ -196,8 +224,38 @@ class ScannerController {
         dietType: userHealthContext.dietType
       };
 
-      // 5. Optional Auto-logging to Food Log
+      // 5. Compute Projected Dashboard Health Score Impact
+      let projectedImpact = {
+        direction: 'increase',
+        points: '+5',
+        label: 'Healthy Match • Raises Dashboard Score (+3 to +6 pts)'
+      };
+
+      if (result.allergyConflict || result.healthScore < 40) {
+        projectedImpact = {
+          direction: 'decrease',
+          points: '-15',
+          label: 'Critical Hazard • Severely Lowers Dashboard Score (-15 to -25 pts)'
+        };
+      } else if (result.healthScore < 70) {
+        projectedImpact = {
+          direction: 'decrease',
+          points: '-6',
+          label: 'Low Rating • Lowers Dashboard Score (-4 to -8 pts)'
+        };
+      } else if (result.healthScore >= 85) {
+        projectedImpact = {
+          direction: 'increase',
+          points: '+8',
+          label: 'Superfood • Boosts Dashboard Score (+7 to +12 pts)'
+        };
+      }
+      result.dashboardImpact = projectedImpact;
+
+      // 6. Optional Auto-logging to Food Log
       let loggedMeal = null;
+      let updatedDashboardScore = null;
+
       if (autoLog === true || autoLog === 'true') {
         loggedMeal = await NutritionLog.create({
           userId: req.user.id,
@@ -212,11 +270,33 @@ class ScannerController {
           barcode: result.barcode || null,
           imageUrl: result.imageUrl || null
         });
+
+        // Recalculate immediate health score impact
+        const HealthMetric = require('../models/HealthMetric');
+        const HealthScoreService = require('../services/healthScoreService');
+        const today = new Date().toISOString().split('T')[0];
+
+        const [profile, metrics, nutritionTotals, recentMeals] = await Promise.all([
+          HealthProfile.findByUserId(userId),
+          HealthMetric.getByDate(userId, today),
+          NutritionLog.getDailyTotals(userId, today),
+          NutritionLog.findByUserAndDate(userId, today)
+        ]);
+
+        const healthScoreData = HealthScoreService.calculateDailyScore(profile, nutritionTotals, metrics, recentMeals);
+        updatedDashboardScore = {
+          score: healthScoreData.overallScore,
+          status: healthScoreData.status,
+          grade: healthScoreData.grade,
+          dietImpact: healthScoreData.dietImpact,
+          insights: healthScoreData.insights
+        };
       }
 
       return ResponseHandler.success(res, 'Food analysis completed successfully', {
         ...result,
-        loggedMeal
+        loggedMeal,
+        updatedDashboardScore
       });
     } catch (error) {
       logger.error('ScannerController.analyze error:', error);

@@ -27,22 +27,43 @@ export interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Quick helper to check if any active auth tokens exist in localStorage
+const hasStoredAuthToken = (): boolean => {
+  try {
+    const cachedUser = localStorage.getItem('cura_auth_user');
+    const cachedToken = localStorage.getItem('accessToken');
+    if (cachedUser || cachedToken) return true;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('sb-') && key.endsWith('-auth-token'))) {
+        const val = localStorage.getItem(key);
+        if (val && val !== 'null' && val !== 'undefined') return true;
+      }
+    }
+  } catch (_) {}
+  return false;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserRecord | null>(null);
   const [healthProfile, setHealthProfile] = useState<any | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(() => hasStoredAuthToken());
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isRegisteringRef = React.useRef(false);
 
   const clearError = useCallback(() => setError(null), []);
 
   /**
    * Sync user profile and health profile for an authenticated session.
-   * Returns false if the user record does not exist in the database (e.g. table wiped or user deleted).
    */
   const syncProfile = useCallback(async (currentSession: Session | null, showLoading = false): Promise<boolean> => {
     if (!currentSession || !currentSession.user) {
+      setUser(null);
+      setHealthProfile(null);
+      localStorage.removeItem('cura_auth_user');
       return false;
     }
 
@@ -50,57 +71,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsProfileLoading(true);
     }
     try {
-      // 1. Verify user exists in the database users table
+      // 1. Check if localStorage already has valid user data matching THIS session user
+      const localUserStr = localStorage.getItem('cura_auth_user');
+      let cachedUser: UserRecord | null = null;
+      if (localUserStr) {
+        try {
+          const parsed = JSON.parse(localUserStr);
+          if (parsed && parsed.id === currentSession.user.id) {
+            cachedUser = parsed;
+            setUser(parsed);
+          } else {
+            // Stale cache from different user or ghost account - remove immediately
+            localStorage.removeItem('cura_auth_user');
+          }
+        } catch (_) {
+          localStorage.removeItem('cura_auth_user');
+        }
+      }
+
+      // 2. Fetch full profile with a 3.5s timeout to prevent cold-start backend delays
+      const profilePromise = profileService.getUserProfile(
+        currentSession.user.id,
+        currentSession.access_token
+      );
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500));
+
+      const fullData = await Promise.race([profilePromise, timeoutPromise]);
+
+      if (fullData) {
+        const resolvedOnboarded = !!fullData.isOnboarded || 
+                                 !!fullData.healthProfile?.isOnboarded || 
+                                 (Number(fullData.healthProfile?.heightCm || 0) > 0) ||
+                                 (cachedUser?.isOnboarded ?? false);
+
+        const updatedUser: UserRecord = {
+          id: fullData.id || currentSession.user.id,
+          name: fullData.name || cachedUser?.name || currentSession.user.user_metadata?.name || 'User',
+          email: fullData.email || cachedUser?.email || currentSession.user.email || '',
+          role: fullData.role || cachedUser?.role || 'user',
+          avatarUrl: fullData.avatarUrl || cachedUser?.avatarUrl || '',
+          isOnboarded: resolvedOnboarded,
+        };
+
+        setUser(updatedUser);
+        setHealthProfile(fullData.healthProfile || null);
+        localStorage.setItem('cura_auth_user', JSON.stringify(updatedUser));
+        return true;
+      }
+
+      // If backend was slow or user is cached
+      if (cachedUser) {
+        return true;
+      }
+
+      // 3. Fallback: verify user in Supabase users table
       const userRec = await profileService.fetchUserProfile(
         currentSession.user.id,
         currentSession.user.email
       );
 
-      // If user does not exist in the database table (e.g. table cleared or user deleted)
-      if (!userRec) {
-        return false;
+      if (userRec) {
+        setUser(userRec);
+        localStorage.setItem('cura_auth_user', JSON.stringify(userRec));
+        return true;
       }
 
-      // Check if localStorage already marked this user as onboarded
-      const localUserStr = localStorage.getItem('cura_auth_user');
-      let localIsOnboarded = false;
-      if (localUserStr) {
-        try {
-          const parsed = JSON.parse(localUserStr);
-          if (parsed && parsed.id === userRec.id && parsed.isOnboarded) {
-            localIsOnboarded = true;
-          }
-        } catch (_) {}
+      // If not yet in table, ensure user record
+      const ensured = await profileService.ensureUserProfile(currentSession.user);
+      if (ensured) {
+        setUser(ensured);
+        localStorage.setItem('cura_auth_user', JSON.stringify(ensured));
+        return true;
       }
 
-      const initialUser = {
-        ...userRec,
-        isOnboarded: userRec.isOnboarded || localIsOnboarded,
-      };
-
-      setUser(initialUser);
-      localStorage.setItem('cura_auth_user', JSON.stringify(initialUser));
-
-      const fullData = await profileService.getUserProfile(
-        currentSession.user.id,
-        currentSession.access_token
-      );
-      if (fullData) {
-        setHealthProfile(fullData.healthProfile || null);
-        setUser(prev => {
-          const resolvedOnboarded = !!fullData.isOnboarded || 
-                                   !!fullData.healthProfile?.isOnboarded || 
-                                   (Number(fullData.healthProfile?.heightCm || 0) > 0) ||
-                                   (prev?.isOnboarded ?? false) || 
-                                   localIsOnboarded;
-          const updated = prev ? { ...prev, isOnboarded: resolvedOnboarded } : null;
-          if (updated) {
-            localStorage.setItem('cura_auth_user', JSON.stringify(updated));
-          }
-          return updated;
-        });
-      }
-      return true;
+      return false;
     } catch (err) {
       if (import.meta.env.DEV) console.error('[AuthProvider] Profile sync error:', err);
       return false;
@@ -117,6 +161,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     async function initializeAuth() {
       try {
+        // If there are no stored credentials anywhere in localStorage, instantly complete
+        if (!hasStoredAuthToken()) {
+          if (isMounted) {
+            setSession(null);
+            setUser(null);
+            setHealthProfile(null);
+            setIsAuthLoading(false);
+          }
+          return;
+        }
+
         const initialSession = await authService.getSession();
         if (!initialSession || !initialSession.user) {
           if (isMounted) {
@@ -131,46 +186,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Validate session with Supabase auth service
-        const currentUser = await authService.getCurrentUser();
-        if (!currentUser) {
-          await authService.signOut();
-          if (isMounted) {
-            setSession(null);
-            setUser(null);
-            setHealthProfile(null);
-            localStorage.removeItem('cura_auth_user');
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-            setIsAuthLoading(false);
-          }
-          return;
-        }
-
         if (isMounted) {
-          // Check if user actually exists in application database (users table)
-          const profileExists = await syncProfile(initialSession, false);
-          if (profileExists) {
-            setSession(initialSession);
-          } else {
-            // User does NOT exist in the database table! Clear auth & sign out!
-            await authService.signOut();
-            setSession(null);
-            setUser(null);
-            setHealthProfile(null);
-            localStorage.removeItem('cura_auth_user');
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
+          setSession(initialSession);
+          if (initialSession.access_token) {
+            localStorage.setItem('accessToken', initialSession.access_token);
           }
+          await syncProfile(initialSession, false);
           setIsAuthLoading(false);
         }
       } catch (err) {
         if (import.meta.env.DEV) console.error('[AuthProvider] Init error:', err);
         if (isMounted) {
-          setSession(null);
-          setUser(null);
-          setHealthProfile(null);
-          localStorage.removeItem('cura_auth_user');
           setIsAuthLoading(false);
         }
       }
@@ -183,12 +209,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (event, newSession) => {
         if (!isMounted) return;
 
+        // Skip background handlers while manual registration is finalizing
+        if (isRegisteringRef.current) {
+          if (newSession) setSession(newSession);
+          return;
+        }
+
         if (event === 'SIGNED_OUT') {
           setSession(null);
           setUser(null);
           setHealthProfile(null);
           setIsAuthLoading(false);
           setIsProfileLoading(false);
+          setIsSubmitting(false);
           localStorage.removeItem('cura_auth_user');
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
@@ -198,26 +231,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (event === 'TOKEN_REFRESHED') {
           if (newSession) {
             setSession(newSession);
+            if (newSession.access_token) {
+              localStorage.setItem('accessToken', newSession.access_token);
+            }
           }
           return;
         }
 
         if (event === 'SIGNED_IN') {
           if (newSession) {
-            const profileExists = await syncProfile(newSession, false);
-            if (profileExists) {
-              setSession(newSession);
-              setIsAuthLoading(false);
-            } else {
-              await authService.signOut();
-              setSession(null);
-              setUser(null);
-              setHealthProfile(null);
-              localStorage.removeItem('cura_auth_user');
-              localStorage.removeItem('accessToken');
-              localStorage.removeItem('refreshToken');
-              setIsAuthLoading(false);
+            setSession(newSession);
+            if (newSession.access_token) {
+              localStorage.setItem('accessToken', newSession.access_token);
             }
+            await syncProfile(newSession, false);
+            setIsAuthLoading(false);
           }
           return;
         }
@@ -241,51 +269,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * Login user
    */
   const login = async (credentials: SignInParams): Promise<boolean> => {
-    setIsAuthLoading(true);
+    setIsSubmitting(true);
     setError(null);
     try {
       const { user: authUser, session: newSession, error: authError } = await authService.signIn(credentials);
 
       if (authError) {
         setError(authError);
-        setIsAuthLoading(false);
+        setIsSubmitting(false);
         return false;
       }
 
       if (newSession && authUser) {
+        setSession(newSession);
+        if (newSession.access_token) {
+          localStorage.setItem('accessToken', newSession.access_token);
+        }
+
         const profileExists = await syncProfile(newSession);
         if (!profileExists) {
-          await authService.signOut();
-          setSession(null);
-          setUser(null);
-          localStorage.removeItem('cura_auth_user');
-          setError('User account was not found in the database. Please register.');
-          setIsAuthLoading(false);
-          return false;
+          // If no row in users table yet, ensure profile instead of signing out
+          const ensured = await profileService.ensureUserProfile(authUser);
+          if (ensured) {
+            setUser(ensured);
+            localStorage.setItem('cura_auth_user', JSON.stringify(ensured));
+          } else {
+            await authService.signOut();
+            setSession(null);
+            setUser(null);
+            localStorage.removeItem('cura_auth_user');
+            setError('User account was not found in the database. Please register.');
+            setIsSubmitting(false);
+            return false;
+          }
         }
-        setSession(newSession);
-        setIsAuthLoading(false);
+        setIsSubmitting(false);
         return true;
       }
 
       setError('Session could not be established.');
-      setIsAuthLoading(false);
+      setIsSubmitting(false);
       return false;
     } catch (err: any) {
       setError(err.message || 'Login failed.');
-      setIsAuthLoading(false);
+      setIsSubmitting(false);
       return false;
     }
   };
 
   /**
-   * Register user
+   * Fast register user - no blocking route spinner
    */
   const register = async (params: SignUpParams): Promise<boolean> => {
-    setIsAuthLoading(true);
+    setIsSubmitting(true);
     setError(null);
+    isRegisteringRef.current = true;
     try {
-      // 1. Clear any prior local storage and state before registering a fresh account
       localStorage.removeItem('cura_auth_user');
       setUser(null);
       setHealthProfile(null);
@@ -294,56 +333,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (authError) {
         setError(authError);
-        setIsAuthLoading(false);
+        setIsSubmitting(false);
+        isRegisteringRef.current = false;
         return false;
       }
 
       if (authUser) {
-        // Automatically ensure user profile is inserted in DB
-        const createdUser = await profileService.createUserProfile(authUser, params.name);
+        // Ensure user record is created in public.users table in Supabase
+        const dbUser = await profileService.ensureUserProfile(authUser);
 
-        // A freshly registered user MUST ALWAYS start onboarding
-        const freshUser: UserRecord = createdUser || {
+        const freshUser: UserRecord = {
           id: authUser.id,
-          name: params.name,
-          email: params.email,
-          role: 'user',
-          isOnboarded: false,  // NEW user — always false
+          name: dbUser?.name || params.name.trim(),
+          email: dbUser?.email || params.email.toLowerCase().trim(),
+          role: dbUser?.role || 'user',
+          isOnboarded: false,
+          isNewRegistration: true,
         };
 
-        if (newSession) {
-          setSession(newSession);
-          setUser(freshUser);
-          setHealthProfile(null);
-          localStorage.setItem('cura_auth_user', JSON.stringify(freshUser));
-          setIsAuthLoading(false);
-          return true;
-        } else {
-          // Attempt automatic sign-in
-          const { session: directSession } = await authService.signIn({ email: params.email, password: params.password });
-          if (directSession) {
-            setSession(directSession);
-            setUser(freshUser);
-            setHealthProfile(null);
-            localStorage.setItem('cura_auth_user', JSON.stringify(freshUser));
-            setIsAuthLoading(false);
-            return true;
-          }
+        setUser(freshUser);
+        localStorage.setItem('cura_auth_user', JSON.stringify(freshUser));
 
-          // In local dev/unconfirmed mode, create active session record for onboarding
-          setUser(freshUser);
-          setHealthProfile(null);
-          localStorage.setItem('cura_auth_user', JSON.stringify(freshUser));
-          setIsAuthLoading(false);
-          return true;
+        let activeSession = newSession;
+        if (!activeSession) {
+          // Auto sign-in if no session returned from signUp
+          const { session: directSession } = await authService.signIn({
+            email: params.email,
+            password: params.password,
+          });
+          if (directSession) {
+            activeSession = directSession;
+          }
         }
+
+        if (activeSession) {
+          setSession(activeSession);
+          if (activeSession.access_token) {
+            localStorage.setItem('accessToken', activeSession.access_token);
+          }
+        }
+
+        setIsSubmitting(false);
+        // Retain registration lock briefly to let route transition complete smoothly
+        setTimeout(() => {
+          isRegisteringRef.current = false;
+        }, 2000);
+        return true;
       }
 
-      setIsAuthLoading(false);
+      setIsSubmitting(false);
+      isRegisteringRef.current = false;
       return false;
     } catch (err: any) {
       setError(err.message || 'Registration failed.');
-      setIsAuthLoading(false);
+      setIsSubmitting(false);
+      isRegisteringRef.current = false;
       return false;
     }
   };
@@ -485,7 +529,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: !isAuthLoading && !!session && !!user,
     isAuthLoading,
     isProfileLoading,
-    isLoading: isAuthLoading || isProfileLoading,
+    isLoading: isSubmitting || isAuthLoading || isProfileLoading,
     error,
     clearError,
     login,

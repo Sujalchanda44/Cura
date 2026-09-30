@@ -12,16 +12,16 @@ export const OnboardingRoute: React.FC<OnboardingRouteProps> = ({ children }) =>
   if (isAuthLoading || (!user && isProfileLoading)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
-        <div className="w-12 h-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mb-4" />
+        <div className="w-12 h-12 border-4 border-[#134E2F]/20 border-t-[#134E2F] rounded-full animate-spin mb-4" />
         <p className="text-xs font-semibold text-slate-500 tracking-wide">
-          Verifying profile status...
+          Setting up your health workspace...
         </p>
       </div>
     );
   }
 
   // If unauthenticated -> redirect to login
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !user) {
     return <Navigate to="/auth/login" replace />;
   }
 

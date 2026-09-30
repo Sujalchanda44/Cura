@@ -3,8 +3,10 @@
  */
 
 const memoryDb = require('../database/memoryStore');
-const { supabase, isSupabaseConfigured } = require('../services/supabaseService');
+const { supabaseAdmin, supabase, isSupabaseConfigured } = require('../services/supabaseService');
 const logger = require('../utils/logger');
+
+const db = supabaseAdmin || supabase;
 
 class NutritionLog {
   static async create(logData) {
@@ -24,21 +26,23 @@ class NutritionLog {
       imageUrl: logData.imageUrl || null
     };
 
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('nutrition_logs')
           .insert([log])
           .select()
           .single();
         if (!error && data) {
-          // Sync with local memoryDb
-          await memoryDb.create('nutritionLogs', data);
           return data;
         }
-        if (error) logger.error('Supabase create nutrition log failed, falling back:', error);
+        if (error) {
+          logger.error('Supabase create nutrition log failed:', error);
+          throw error;
+        }
       } catch (err) {
-        logger.error('Supabase nutritionLogs create error, falling back:', err);
+        logger.error('Supabase nutritionLogs create error:', err);
+        throw err;
       }
     }
 
@@ -46,9 +50,9 @@ class NutritionLog {
   }
 
   static async findByUserAndDate(userId, date) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('nutrition_logs')
           .select('*')
           .eq('userId', userId)
@@ -56,8 +60,9 @@ class NutritionLog {
           .order('createdAt', { ascending: false });
         if (!error && data) return data;
       } catch (err) {
-        logger.error('Supabase findByUserAndDate error, falling back:', err);
+        logger.error('Supabase findByUserAndDate error:', err);
       }
+      return [];
     }
 
     const logs = await memoryDb.find('nutritionLogs', { userId, date });
@@ -65,9 +70,9 @@ class NutritionLog {
   }
 
   static async findByUserDateRange(userId, startDate, endDate) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('nutrition_logs')
           .select('*')
           .eq('userId', userId)
@@ -75,8 +80,9 @@ class NutritionLog {
           .lte('date', endDate);
         if (!error && data) return data;
       } catch (err) {
-        logger.error('Supabase findByUserDateRange error, falling back:', err);
+        logger.error('Supabase findByUserDateRange error:', err);
       }
+      return [];
     }
 
     const allLogs = await memoryDb.find('nutritionLogs', { userId });
@@ -100,24 +106,22 @@ class NutritionLog {
   }
 
   static async delete(id, userId) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && db) {
       try {
-        const { data: logCheck, error: checkError } = await supabase
+        const { data: logCheck, error: checkError } = await db
           .from('nutrition_logs')
           .select('*')
           .eq('id', id)
           .eq('userId', userId)
           .maybeSingle();
         if (!checkError && logCheck) {
-          const { error } = await supabase.from('nutrition_logs').delete().eq('id', id);
-          if (!error) {
-            await memoryDb.delete('nutritionLogs', id);
-            return true;
-          }
+          const { error } = await db.from('nutrition_logs').delete().eq('id', id);
+          return !error;
         }
       } catch (err) {
-        logger.error('Supabase nutritionLogs delete error, falling back:', err);
+        logger.error('Supabase nutritionLogs delete error:', err);
       }
+      return false;
     }
 
     const log = await memoryDb.findById('nutritionLogs', id);

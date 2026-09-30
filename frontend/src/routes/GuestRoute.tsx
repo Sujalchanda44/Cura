@@ -7,12 +7,13 @@ interface GuestRouteProps {
 }
 
 export const GuestRoute: React.FC<GuestRouteProps> = ({ children }) => {
-  const { isAuthenticated, isAuthLoading, isProfileLoading, user } = useAuth();
+  const { isAuthenticated, isAuthLoading, user } = useAuth();
 
-  if (isAuthLoading || (!user && isProfileLoading && !isAuthenticated)) {
+  // Only show full-screen loader during initial boot if verifying an existing stored token
+  if (isAuthLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
-        <div className="w-12 h-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mb-4" />
+        <div className="w-12 h-12 border-4 border-[#134E2F]/20 border-t-[#134E2F] rounded-full animate-spin mb-4" />
         <p className="text-xs font-semibold text-slate-500 tracking-wide">
           Verifying session status...
         </p>
