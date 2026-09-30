@@ -128,30 +128,59 @@ class UserController {
   }
 
   /**
-   * Upload user avatar / DP to Supabase Storage
+   * Upload user avatar / DP to Supabase Storage with graceful fallback
    * POST /api/user/avatar or POST /api/profile/avatar
    */
   static async uploadAvatar(req, res, next) {
     try {
       let avatarUrl = null;
 
-      if (req.file) {
-        // Upload from in-memory multipart file buffer directly to Supabase Storage
-        const uploadResult = await SupabaseStorageService.uploadFile(req.file, {
-          folder: 'avatars',
-          userId: req.user.id,
-          prefix: 'avatar'
-        });
-        avatarUrl = uploadResult.publicUrl;
-      } else if (req.body?.avatarBase64) {
-        // Upload base64 image data directly to Supabase Storage
-        const uploadResult = await SupabaseStorageService.uploadBase64(req.body.avatarBase64, {
-          folder: 'avatars',
-          userId: req.user.id,
-          prefix: 'avatar'
-        });
-        avatarUrl = uploadResult.publicUrl;
-      } else {
+      // 1. Try uploading to Supabase Storage first
+      try {
+        if (req.file) {
+          const uploadResult = await SupabaseStorageService.uploadFile(req.file, {
+            folder: 'avatars',
+            userId: req.user.id,
+            prefix: 'avatar'
+          });
+          avatarUrl = uploadResult.publicUrl;
+        } else if (req.body?.avatarBase64) {
+          const uploadResult = await SupabaseStorageService.uploadBase64(req.body.avatarBase64, {
+            folder: 'avatars',
+            userId: req.user.id,
+            prefix: 'avatar'
+          });
+          avatarUrl = uploadResult.publicUrl;
+        }
+      } catch (cloudErr) {
+        logger.warn('Supabase storage upload failed or not configured, using fallback avatar storage:', cloudErr.message);
+      }
+
+      // 2. Resilient fallback: If cloud storage failed (e.g. Render missing SUPABASE_SERVICE_ROLE_KEY or storage RLS error),
+      // persist as base64 data URI directly in database so it survives container restarts and works across domains
+      if (!avatarUrl) {
+        if (req.file) {
+          const mime = req.file.mimetype || 'image/jpeg';
+          avatarUrl = `data:${mime};base64,${req.file.buffer.toString('base64')}`;
+          try {
+            const fs = require('fs');
+            const path = require('path');
+            const avatarsDir = path.join(__dirname, '../../uploads/avatars');
+            if (!fs.existsSync(avatarsDir)) {
+              fs.mkdirSync(avatarsDir, { recursive: true });
+            }
+            const ext = path.extname(req.file.originalname || '.jpg') || '.jpg';
+            const filename = `avatar-${req.user.id}-${Date.now()}${ext}`;
+            fs.writeFileSync(path.join(avatarsDir, filename), req.file.buffer);
+          } catch (fsErr) {
+            // Ignore ephemeral filesystem errors
+          }
+        } else if (req.body?.avatarBase64) {
+          avatarUrl = req.body.avatarBase64;
+        }
+      }
+
+      if (!avatarUrl) {
         return ResponseHandler.error(res, 'No image file or image data provided', HTTP_STATUS.BAD_REQUEST);
       }
 
@@ -159,7 +188,7 @@ class UserController {
       try {
         const previousUser = await User.findById(req.user.id);
         if (previousUser?.avatarUrl && previousUser.avatarUrl.includes('/storage/v1/object/public/')) {
-          await SupabaseStorageService.deleteFile(previousUser.avatarUrl);
+          await SupabaseStorageService.deleteFile(previousUser.avatarUrl).catch(() => {});
         }
       } catch (cleanErr) {
         logger.warn('Failed to clean up old avatar from cloud storage:', cleanErr.message);
@@ -167,12 +196,12 @@ class UserController {
 
       const updated = await User.update(req.user.id, { avatarUrl });
 
-      return ResponseHandler.success(res, 'Avatar uploaded successfully to Supabase Storage', {
+      return ResponseHandler.success(res, 'Avatar updated successfully', {
         avatarUrl,
-        user: User.toSafeObject(updated)
+        user: updated ? User.toSafeObject(updated) : { ...req.user, avatarUrl }
       });
     } catch (error) {
-      logger.error('Error uploading avatar to Supabase:', error);
+      logger.error('Error uploading avatar:', error);
       next(error);
     }
   }
